@@ -5,10 +5,13 @@ import { MenuItem } from "@/models/MenuItem";
 import { Category } from "@/models/Category";
 import { jsonFromDbError } from "@/lib/api-db-error";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 export async function GET(req: NextRequest) {
   try {
     await connectDB();
-    const { searchParams } = new URL(req.url);
+    const searchParams = req.nextUrl.searchParams;
     const categorySlug = searchParams.get("category")?.toLowerCase();
     const search = searchParams.get("search")?.trim();
     const filters = (searchParams.get("filter") || "")
