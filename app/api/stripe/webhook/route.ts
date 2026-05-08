@@ -123,23 +123,15 @@ export async function POST(req: Request) {
         }
 
         const orderDoc = await Order.findById(orderId);
-        if (orderDoc && !orderDoc.restaurantOrderEmailSent) {
+        const sendCustomer = process.env.ORDER_SEND_CUSTOMER_CONFIRMATION !== "false";
+        const customerDone = !sendCustomer || Boolean(orderDoc?.confirmationEmailSent);
+        const merchantDone = Boolean(orderDoc?.merchantNotificationEmailSent);
+        if (orderDoc && !(customerDone && merchantDone)) {
           try {
             await sendPaidOrderEmails(orderDoc, {
               stripeSessionId: expanded.id,
               stripePaymentIntentId: piId,
             });
-            const sendCustomer = process.env.ORDER_SEND_CUSTOMER_CONFIRMATION !== "false";
-            await Order.updateOne(
-              { _id: orderId },
-              {
-                $set: {
-                  restaurantOrderEmailSent: true,
-                  restaurantOrderEmailSentAt: new Date(),
-                  ...(sendCustomer ? { customerOrderConfirmationSentAt: new Date() } : {}),
-                },
-              }
-            );
           } catch (mailErr) {
             console.error("Order paid but email failed", mailErr);
             return NextResponse.json({ error: "Email delivery failed" }, { status: 500 });

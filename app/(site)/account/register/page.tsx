@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { suggestEmailTypo } from "@/lib/email-validation";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -14,9 +15,14 @@ export default function RegisterPage() {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const emailSuggestion = React.useMemo(() => suggestEmailTypo(email), [email]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (name.trim().length < 2) {
+      toast.error("Please enter your name (minimum 2 characters).");
+      return;
+    }
     setLoading(true);
     const res = await fetch("/api/auth/register", {
       method: "POST",
@@ -27,8 +33,12 @@ export default function RegisterPage() {
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       toast.error(data.error || "Registration failed");
+      if (data.emailSuggestion) {
+        toast.message(`Did you mean ${data.emailSuggestion}?`);
+      }
       return;
     }
+    toast.success("Account created. Please check your email to verify your account.");
     await signIn("credentials", { email, password, redirect: false });
     router.push("/account");
     router.refresh();
@@ -47,6 +57,9 @@ export default function RegisterPage() {
           Email
           <Input className="mt-1" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </label>
+        {emailSuggestion ? (
+          <p className="text-xs text-mango-300">Did you mean {emailSuggestion}?</p>
+        ) : null}
         <label className="block text-xs font-semibold uppercase tracking-wide text-rice-400">
           Password (min 8)
           <Input className="mt-1" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />

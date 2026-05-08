@@ -2,14 +2,29 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
+
+function BagIcon(props: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={props.className} aria-hidden>
+      <path d="M6 7h12l-1 12H7L6 7z" strokeLinejoin="round" />
+      <path d="M9 7V5a3 3 0 016 0v2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ArrowIcon(props: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className={props.className} aria-hidden>
+      <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export function Hero() {
   return (
     <section className="relative overflow-hidden">
-
-      <div className="relative mx-auto flex min-h-[78vh] max-w-6xl flex-col justify-center gap-8 px-4 pb-14 pt-20 md:min-h-[88vh] md:flex-row md:items-center md:gap-10 md:px-6 md:pb-20 md:pt-28">
-        <div className="max-w-xl space-y-6">
+      <div className="relative mx-auto flex min-h-[78vh] max-w-6xl flex-col justify-center gap-10 px-4 pb-14 pt-20 md:min-h-[88vh] md:flex-row md:items-center md:gap-10 md:px-6 md:pb-20 md:pt-28">
+        <div className="mx-auto w-full max-w-xl space-y-6 md:mx-0">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -22,7 +37,7 @@ export function Hero() {
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.12 }}
-            className="font-display text-3xl font-semibold leading-tight text-rice-50 sm:text-4xl md:text-6xl"
+            className="font-display text-center text-3xl font-semibold leading-tight text-rice-50 sm:text-4xl md:text-left md:text-6xl"
           >
             Fresh Poké. <span className="text-gradient-warm">Bold Flavour.</span>
             <br />
@@ -32,26 +47,39 @@ export function Hero() {
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="text-base text-rice-200/90 md:text-xl"
+            className="text-center text-base text-rice-200/90 md:text-left md:text-xl"
           >
-            Premium poké bowls crafted fresh in downtown Toronto — vibrant ingredients, chef-level balance, and a
-            dining experience that feels as good as it tastes.
+            Premium poké bowls crafted fresh in downtown Toronto — vibrant ingredients, chef-level balance, and a dining
+            experience that feels as good as it tastes.
           </motion.p>
+
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
-            className="flex flex-wrap gap-2 sm:gap-3"
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.22, type: "spring", stiffness: 120, damping: 18 }}
+            className="flex flex-col items-center gap-3 pt-2 md:items-start"
           >
-            <Link href="/menu">
-              <Button size="lg" className="w-full sm:w-auto">
+            <Link href="/menu" className="group relative w-full max-w-md md:max-w-none">
+              <span
+                className="pointer-events-none absolute -inset-1 rounded-full bg-gradient-to-r from-coral-500 via-mango-400 to-avocado-500 opacity-75 blur-lg transition duration-500 group-hover:opacity-100 group-hover:blur-xl"
+                aria-hidden
+              />
+              <motion.span
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.98 }}
+                className="relative flex h-14 w-full min-h-[56px] items-center justify-center gap-3 rounded-full bg-gradient-to-r from-coral-500 via-mango-400 to-avocado-500 px-10 text-base font-extrabold tracking-wide text-charcoal-900 shadow-[0_0_40px_-4px_rgba(255,107,92,0.55),0_12px_40px_-8px_rgba(0,0,0,0.45)] ring-2 ring-white/25 transition-shadow duration-300 group-hover:shadow-[0_0_52px_-2px_rgba(255,194,51,0.55),0_16px_48px_-8px_rgba(0,0,0,0.5)] md:h-16 md:min-h-[64px] md:px-12 md:text-lg"
+              >
+                <BagIcon className="h-5 w-5 shrink-0 md:h-6 md:w-6" />
                 Order Now
-              </Button>
+                <ArrowIcon className="h-5 w-5 shrink-0 transition-transform duration-300 group-hover:translate-x-0.5 md:h-6 md:w-6" />
+              </motion.span>
             </Link>
-            <Link href="/menu">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto">
-                View Menu
-              </Button>
+            <p className="text-center text-xs font-medium text-rice-400/95 md:text-left">Pickup only · Freshly prepared</p>
+            <Link
+              href="/menu"
+              className="mt-1 inline-flex w-full max-w-md items-center justify-center rounded-full border border-white/20 bg-white/[0.06] px-6 py-3 text-sm font-semibold text-rice-100 backdrop-blur-md transition hover:border-white/35 hover:bg-white/10 md:w-auto md:px-8"
+            >
+              View Menu
             </Link>
           </motion.div>
         </div>

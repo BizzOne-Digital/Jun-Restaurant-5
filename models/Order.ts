@@ -25,6 +25,15 @@ const DeliveryAddressSchema = new Schema(
   { _id: false }
 );
 
+const StatusEmailLogEntrySchema = new Schema(
+  {
+    status: { type: String, required: true },
+    sentAt: { type: Date, required: true },
+    recipient: { type: String, required: true },
+  },
+  { _id: false }
+);
+
 const OrderSchema = new Schema(
   {
     orderNumber: { type: String, required: true, unique: true, index: true },
@@ -32,7 +41,14 @@ const OrderSchema = new Schema(
     customerName: { type: String, required: true, trim: true },
     customerEmail: { type: String, required: true, lowercase: true, trim: true },
     customerPhone: { type: String, required: true, trim: true },
+    /** Legacy field — new orders are always pickup; delivery is no longer offered. */
     orderType: { type: String, enum: ["pickup", "delivery"], required: true },
+    /** Canonical serving mode for reporting and emails. */
+    servingMode: {
+      type: String,
+      enum: ["in_store_pickup"],
+      default: "in_store_pickup",
+    },
     deliveryAddress: { type: DeliveryAddressSchema, default: null },
     items: { type: [OrderItemSchema], required: true },
     subtotal: { type: Number, required: true, min: 0 },
@@ -53,10 +69,19 @@ const OrderSchema = new Schema(
     },
     stripePaymentIntentId: { type: String, default: "" },
     stripeCheckoutSessionId: { type: String, default: "" },
-    /** Idempotency: restaurant notification email sent after successful payment */
+    /** Idempotency: restaurant / kitchen notification after successful payment */
     restaurantOrderEmailSent: { type: Boolean, default: false },
     restaurantOrderEmailSentAt: { type: Date, default: null },
+    /** Legacy timestamp when customer confirmation was sent (pre–Mailgun flags). */
     customerOrderConfirmationSentAt: { type: Date, default: null },
+    customerEmailVerified: { type: Boolean, default: false },
+    confirmationEmailSent: { type: Boolean, default: false },
+    confirmationEmailSentAt: { type: Date, default: null },
+    confirmationEmailStatus: { type: String, enum: ["sent", "failed", "skipped"], default: "skipped" },
+    confirmationEmailError: { type: String, default: "" },
+    statusEmailLog: { type: [StatusEmailLogEntrySchema], default: [] },
+    merchantNotificationEmailSent: { type: Boolean, default: false },
+    merchantNotificationEmailSentAt: { type: Date, default: null },
     notes: { type: String, default: "" },
   },
   { timestamps: true }

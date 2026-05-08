@@ -10,7 +10,10 @@ import { SiteSetting } from "@/models/SiteSetting";
 import type { CartItem } from "@/types";
 import type Stripe from "stripe";
 import { Types } from "mongoose";
-import { assertPublicSiteUrl } from "@/lib/site-url";
+import { assertPublicSiteUrl, publicSiteUrlWithPath } from "@/lib/site-url";
+import { hasMinPhoneDigits } from "@/lib/email-validation";
+import { checkoutEmailVerificationRequired } from "@/lib/checkout/email-verification";
+import { CheckoutEmailVerification } from "@/models/CheckoutEmailVerification";
 
 export { StripeSetupError } from "@/lib/stripe-env";
 
@@ -25,19 +28,32 @@ const AddressSchema = z.object({
 
 export const CheckoutBodySchema = z.object({
   items: z.array(z.record(z.unknown())).min(1),
-  customerName: z.string().min(1).max(120),
-  customerEmail: z.string().email().max(200),
-  customerPhone: z.string().min(7).max(40),
-  orderType: z.enum(["pickup", "delivery"]),
+  customerName: z.string().trim().min(2, "Name is required (minimum 2 characters)").max(120),
+  customerEmail: z.string().trim().toLowerCase().email("Please enter a valid email address.").max(200),
+  customerPhone: z
+    .string()
+    .max(40)
+    .refine((v) => hasMinPhoneDigits(v), { message: "Phone number should contain at least 7 digits" }),
+  /** Ignored for compatibility — this location is pickup-only. */
+  orderType: z.enum(["pickup"]).optional(),
   deliveryAddress: AddressSchema.optional().nullable(),
   promoCode: z.string().max(40).optional(),
   notes: z.string().max(1000).optional(),
-});
+  checkoutEmailVerificationId: z.string().optional(),
+})
+  .superRefine((data, ctx) => {
+    if (data.deliveryAddress) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Delivery is not available. Pickup only.",
+        path: ["deliveryAddress"],
+      });
+    }
+  });
 
 export type CheckoutBody = z.infer<typeof CheckoutBodySchema>;
 
 const TAX_RATE = 0.13;
-const DELIVERY_FEE = 4.99;
 
 /**
  * Phase 2 Stripe Connect: when STRIPE_CONNECTED_ACCOUNT_ID=acct_..., 11% platform fee via application_fee_amount.
@@ -52,10 +68,6 @@ function readConnectedAccountId(): string | undefined {
   return raw;
 }
 
-function restaurantIdFromEnv(): string {
-  return process.env.RESTAURANT_ID?.trim() || "ono-poke-bar";
-}
-
 export async function createStripeCheckoutSession(
   data: CheckoutBody,
   sessionUserId: string | null
@@ -63,9 +75,10 @@ export async function createStripeCheckoutSession(
   assertStripePublishableKey();
   assertPublicSiteUrl();
 
-  if (data.orderType === "delivery" && !data.deliveryAddress) {
-    throw new Error("Delivery address required");
-  }
+  /** Pickup-only: never create delivery orders (ignore client delivery payload). */
+  const orderType = "pickup" as const;
+  const servingMode = "in_store_pickup" as const;
+  const customerEmail = data.customerEmail.trim().toLowerCase();
 
   const items = data.items as unknown as CartItem[];
   const validated = await validateCartItems(items);
@@ -81,12 +94,29 @@ export async function createStripeCheckoutSession(
   const discount = promoResult.discount;
   const promoCode = promoResult.promoCode;
   const afterDiscount = Math.max(0, Math.round((validated.subtotal - discount) * 100) / 100);
-  const deliveryFee = data.orderType === "delivery" ? DELIVERY_FEE : 0;
+  const deliveryFee = 0;
   const taxable = afterDiscount + deliveryFee;
   const tax = Math.round(taxable * TAX_RATE * 100) / 100;
   const total = Math.round((taxable + tax) * 100) / 100;
 
   await connectDB();
+
+  let customerEmailVerified = false;
+  if (checkoutEmailVerificationRequired()) {
+    if (!data.checkoutEmailVerificationId) {
+      throw new Error("This email is not verified. Please check your inbox for the verification code.");
+    }
+    const verification = await CheckoutEmailVerification.findById(data.checkoutEmailVerificationId);
+    if (
+      !verification ||
+      !verification.verified ||
+      verification.expiresAt.getTime() < Date.now() ||
+      verification.email !== customerEmail
+    ) {
+      throw new Error("This email is not verified. Please check your inbox for the verification code.");
+    }
+    customerEmailVerified = true;
+  }
 
   const settings = await SiteSetting.findOne().sort({ updatedAt: -1 }).lean<{
     restaurantName?: string;
@@ -101,7 +131,6 @@ export async function createStripeCheckoutSession(
   }
 
   const restaurantName = settings?.restaurantName?.trim() || "Restaurant";
-  const restaurantId = restaurantIdFromEnv();
   const connectedAccountId = readConnectedAccountId();
 
   const orderItems = validated.lines.map((l) => ({
@@ -121,13 +150,11 @@ export async function createStripeCheckoutSession(
     orderNumber: generateOrderNumber(),
     userId: sessionUserId ?? null,
     customerName: data.customerName,
-    customerEmail: data.customerEmail,
+    customerEmail,
     customerPhone: data.customerPhone,
-    orderType: data.orderType,
-    deliveryAddress:
-      data.orderType === "delivery" && data.deliveryAddress
-        ? { ...data.deliveryAddress, country: data.deliveryAddress.country || "CA" }
-        : null,
+    orderType,
+    servingMode,
+    deliveryAddress: null,
     items: orderItems,
     subtotal: validated.subtotal,
     tax,
@@ -139,10 +166,14 @@ export async function createStripeCheckoutSession(
     orderStatus: "pending",
     notes: data.notes ?? "",
     restaurantOrderEmailSent: false,
+    merchantNotificationEmailSent: false,
+    confirmationEmailSent: false,
+    customerEmailVerified,
+    confirmationEmailStatus: "skipped",
+    confirmationEmailError: "",
   });
 
   const stripe = getStripe();
-  const baseUrl = assertPublicSiteUrl();
 
   const summary = validated.lines
     .map((l) => `${l.quantity}× ${l.name}`)
@@ -151,8 +182,7 @@ export async function createStripeCheckoutSession(
   const description =
     `${summary}${validated.lines.length > 6 ? "…" : ""}` +
     (discount > 0 ? ` · Promo: ${promoCode}` : "") +
-    (deliveryFee > 0 ? " · Includes delivery" : "") +
-    " · Tax included";
+    " · In-store pickup · Tax included";
 
   const totalCents = Math.round(total * 100);
   let sumProductCents = 0;
@@ -185,7 +215,7 @@ export async function createStripeCheckoutSession(
                 currency: "cad",
                 unit_amount: remainderCents,
                 product_data: {
-                  name: "Tax, delivery & promo adjustments",
+                  name: "Tax & promo adjustments",
                   description: description.slice(0, 450),
                 },
               },
@@ -207,12 +237,13 @@ export async function createStripeCheckoutSession(
 
   const metadata = {
     orderId: order._id.toString(),
-    restaurantId,
+    restaurantId: "ono-poke-bar",
     restaurantName,
     customerName: data.customerName,
-    customerEmail: data.customerEmail,
+    customerEmail,
     customerPhone: data.customerPhone,
-    orderType: data.orderType,
+    orderType,
+    servingMode: "in_store_pickup",
     ...(connectedAccountId ? { connectedAccountId } : {}),
   } satisfies Record<string, string>;
 
@@ -238,10 +269,10 @@ export async function createStripeCheckoutSession(
   const sessionStripe = await stripe.checkout.sessions.create({
     mode: "payment",
     currency: "cad",
-    customer_email: data.customerEmail,
+    customer_email: customerEmail,
     line_items: lineItems,
-    success_url: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${baseUrl}/payment-cancelled`,
+    success_url: publicSiteUrlWithPath("/payment-success?session_id={CHECKOUT_SESSION_ID}"),
+    cancel_url: publicSiteUrlWithPath("/cart"),
     metadata,
     payment_intent_data: paymentIntentData,
   });

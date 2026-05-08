@@ -12,7 +12,8 @@ export function SiteShell({ children }: { children: ReactNode }) {
   const items = useCartStore((s) => s.items);
   const count = items.reduce((n, i) => n + i.quantity, 0);
   const subtotal = cartSubtotal(items);
-  const hideBar = pathname.startsWith("/checkout") || pathname.startsWith("/success");
+  const hideBar =
+    pathname.startsWith("/checkout") || pathname.startsWith("/success") || pathname.startsWith("/payment-success");
   const showBar = !hideBar && count > 0;
 
   return (

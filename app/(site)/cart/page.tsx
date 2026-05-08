@@ -12,19 +12,17 @@ import { EmptyState } from "@/components/site/empty-state";
 import { AnimatedPage } from "@/components/site/animated-page";
 
 const TAX_RATE = 0.13;
-const DELIVERY = 4.99;
 
 export default function CartPage() {
   const items = useCartStore((s) => s.items);
   const setQty = useCartStore((s) => s.setQty);
   const removeItem = useCartStore((s) => s.removeItem);
   const [promo, setPromo] = React.useState("");
-  const [mode, setMode] = React.useState<"pickup" | "delivery">("pickup");
   const [notes, setNotes] = React.useState("");
 
   const subtotal = cartSubtotal(items);
   const discount = 0;
-  const deliveryFee = mode === "delivery" ? DELIVERY : 0;
+  const deliveryFee = 0;
   const taxable = Math.max(0, subtotal - discount) + deliveryFee;
   const tax = Math.round(taxable * TAX_RATE * 100) / 100;
   const total = Math.round((taxable + tax) * 100) / 100;
@@ -85,6 +83,7 @@ export default function CartPage() {
 
           <div className="glass-panel h-fit rounded-3xl p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-mango-300">Summary</p>
+            <p className="mt-2 text-xs text-rice-500">Pickup only · In-store pickup</p>
             <div className="mt-4 space-y-2 text-sm text-rice-300">
               <div className="flex justify-between">
                 <span>Subtotal</span>
@@ -102,30 +101,13 @@ export default function CartPage() {
                 <span>${tax.toFixed(2)}</span>
               </div>
               <div className="flex justify-between">
-                <span>Delivery</span>
-                <span>{mode === "delivery" ? `$${deliveryFee.toFixed(2)}` : "Pickup"}</span>
+                <span>Pickup</span>
+                <span className="text-rice-200">In-store</span>
               </div>
               <div className="flex justify-between border-t border-white/10 pt-3 text-base font-semibold text-rice-50">
                 <span>Estimated total</span>
                 <span>${total.toFixed(2)}</span>
               </div>
-            </div>
-
-            <div className="mt-4 flex gap-2 rounded-2xl border border-white/10 p-1">
-              <button
-                type="button"
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold ${mode === "pickup" ? "bg-white/10 text-rice-50" : "text-rice-400"}`}
-                onClick={() => setMode("pickup")}
-              >
-                Pickup
-              </button>
-              <button
-                type="button"
-                className={`flex-1 rounded-xl py-2 text-sm font-semibold ${mode === "delivery" ? "bg-white/10 text-rice-50" : "text-rice-400"}`}
-                onClick={() => setMode("delivery")}
-              >
-                Delivery
-              </button>
             </div>
 
             <label className="mt-4 block text-xs font-semibold uppercase tracking-wide text-rice-400">

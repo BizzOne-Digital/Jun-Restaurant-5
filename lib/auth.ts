@@ -28,6 +28,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role as "user" | "admin",
+          emailVerified: Boolean(user.emailVerified),
         };
       },
     }),
@@ -38,6 +39,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as { role?: "user" | "admin" }).role ?? "user";
         token.name = user.name ?? "";
+        token.emailVerified = (user as { emailVerified?: boolean }).emailVerified ?? false;
       }
       if (trigger === "update" && session?.name) {
         token.name = session.name as string;
@@ -49,6 +51,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
         session.user.role = token.role;
         session.user.name = (token.name as string) || session.user.name;
+        session.user.emailVerified = Boolean(token.emailVerified);
       }
       return session;
     },

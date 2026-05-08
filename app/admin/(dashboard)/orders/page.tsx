@@ -3,6 +3,9 @@
 import * as React from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { Input } from "@/components/ui/input";
+import { playOrderNotificationSound } from "@/lib/orderSound";
+
+const LS_ALERTS = "ono-admin-order-alerts-enabled";
 
 type Order = {
   _id: string;
@@ -19,19 +22,71 @@ type Order = {
 export default function AdminOrdersPage() {
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [q, setQ] = React.useState("");
+  const [alertsEnabled, setAlertsEnabled] = React.useState(false);
+  const initialLoadRef = React.useRef(true);
+  const lastTopIdRef = React.useRef<string | null>(null);
 
-  const load = () => {
+  React.useEffect(() => {
+    try {
+      setAlertsEnabled(localStorage.getItem(LS_ALERTS) === "1");
+    } catch {
+      setAlertsEnabled(false);
+    }
+  }, []);
+
+  const setAlerts = (on: boolean) => {
+    setAlertsEnabled(on);
+    try {
+      if (on) localStorage.setItem(LS_ALERTS, "1");
+      else localStorage.removeItem(LS_ALERTS);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const enableAlertsWithUnlock = async () => {
+    setAlerts(true);
+    try {
+      const audio = new Audio("/sounds/order-notification.mp3");
+      audio.volume = 0.01;
+      await audio.play();
+      audio.pause();
+    } catch {
+      /* still enable — real alerts use playOrderNotificationSound */
+    }
+  };
+
+  const load = React.useCallback(() => {
     const params = new URLSearchParams();
     if (q.trim()) params.set("q", q.trim());
     fetch(`/api/admin/orders?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => setOrders(d.orders ?? []));
-  };
+  }, [q]);
 
   React.useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
+
+  React.useEffect(() => {
+    if (!alertsEnabled || q.trim()) return;
+    const t = setInterval(load, 30_000);
+    return () => clearInterval(t);
+  }, [alertsEnabled, q, load]);
+
+  React.useEffect(() => {
+    if (!orders.length) return;
+    const top = orders[0]._id;
+    if (initialLoadRef.current) {
+      initialLoadRef.current = false;
+      lastTopIdRef.current = top;
+      return;
+    }
+    if (alertsEnabled && lastTopIdRef.current && top !== lastTopIdRef.current) {
+      playOrderNotificationSound();
+    }
+    lastTopIdRef.current = top;
+  }, [orders, alertsEnabled]);
 
   const updateStatus = async (id: string, orderStatus: string) => {
     await fetch(`/api/admin/orders/${id}/status`, {
@@ -46,20 +101,32 @@ export default function AdminOrdersPage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="font-display text-2xl">Orders</h2>
-        <div className="flex gap-2">
-          <Input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} className="md:w-72" />
-          <button
-            type="button"
-            className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold"
-            onClick={load}
-          >
-            Search
-          </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+          {!alertsEnabled ? (
+            <button
+              type="button"
+              className="rounded-full border border-mango-400/40 bg-mango-400/10 px-4 py-2 text-left text-xs font-semibold text-mango-200 hover:bg-mango-400/20"
+              onClick={enableAlertsWithUnlock}
+            >
+              Enable order alerts
+              <span className="mt-0.5 block font-normal text-rice-500">Plays a sound when new orders appear (saved on this device).</span>
+            </button>
+          ) : (
+            <label className="flex cursor-pointer items-center gap-2 text-sm text-rice-300">
+              <input type="checkbox" checked={alertsEnabled} onChange={(e) => setAlerts(e.target.checked)} className="rounded border-white/20" />
+              Order alerts on
+            </label>
+          )}
+          <div className="flex gap-2">
+            <Input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} className="md:w-72" />
+            <button type="button" className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold" onClick={load}>
+              Search
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-white/10">
-        {/* Desktop table */}
         <table className="hidden min-w-full text-left text-sm md:table">
           <thead className="bg-white/5 text-xs uppercase tracking-wide text-rice-400">
             <tr>
@@ -106,7 +173,6 @@ export default function AdminOrdersPage() {
           </tbody>
         </table>
 
-        {/* Mobile cards */}
         <div className="divide-y divide-white/5 md:hidden">
           {orders.map((o) => (
             <div key={o._id} className="space-y-3 p-4">
@@ -130,7 +196,9 @@ export default function AdminOrdersPage() {
                   onChange={(e) => updateStatus(o._id, e.target.value)}
                 >
                   {["pending", "paid", "preparing", "ready", "completed", "cancelled", "refunded"].map((s) => (
-                    <option key={s} value={s}>{s}</option>
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
                   ))}
                 </select>
               </div>

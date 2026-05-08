@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { CheckoutBodySchema, createStripeCheckoutSession, StripeSetupError } from "@/lib/checkout/create-stripe-checkout-session";
 import { rateLimit } from "@/lib/rate-limit";
 import { getSession } from "@/lib/session";
+import { checkoutValidationErrorBody } from "@/lib/checkout/request-errors";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ export async function POST(req: Request) {
   const json = await req.json().catch(() => null);
   const parsed = CheckoutBodySchema.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid checkout data" }, { status: 400 });
+    return NextResponse.json(checkoutValidationErrorBody(parsed.error, json), { status: 400 });
   }
 
   try {

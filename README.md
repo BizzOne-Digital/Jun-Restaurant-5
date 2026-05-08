@@ -29,23 +29,37 @@ Copy `.env.example` to `.env.local` and fill in real values. **Never commit `.en
 | `STRIPE_SECRET_KEY` | Must start with `sk_test_` or `sk_live_` |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Must start with `pk_test_` or `pk_live_` |
 | `STRIPE_WEBHOOK_SECRET` | Signing secret from Stripe Dashboard or Stripe CLI (`whsec_…`) |
-| `RESTAURANT_ORDER_EMAIL` | Where paid-order emails go (or set **Admin → Settings → email** in MongoDB) |
-| `ORDER_CC_EMAIL` | CC on every restaurant order email (defaults to `junkong68@gmail.com` in code if unset) |
-| `ORDER_FROM_EMAIL` | From address (must be allowed by your provider/domain) |
-| `EMAIL_PROVIDER` | `resend` **or** `smtp` |
-| `RESEND_API_KEY` | Required when `EMAIL_PROVIDER=resend` |
-| `SMTP_*` | Required when `EMAIL_PROVIDER=smtp` |
+| `RESTAURANT_ORDER_EMAIL` | Kitchen inbox for new paid orders (or set **Admin → Settings → email** in MongoDB) |
+| `ORDER_CC_EMAIL` | CC on transactional order emails (defaults to `junkong68@gmail.com` in code if unset) |
+| `MAILGUN_API_KEY` | Mailgun private API key (recommended for production transactional email) |
+| `MAILGUN_DOMAIN` | Sending domain verified in Mailgun (e.g. `merchantorders.io`) |
+| `MAILGUN_FROM_EMAIL` | Verified sender address (e.g. `orders@merchantorders.io`) |
+| `MAILGUN_FROM_NAME` | Display name on outbound mail (e.g. `Merchant Orders`) |
+| `ADMIN_ORDER_EMAIL` | Optional BCC for new-order Mailgun email when different from `RESTAURANT_ORDER_EMAIL` |
+| `ORDER_FROM_EMAIL` | Legacy: from address when **not** using Mailgun |
+| `EMAIL_PROVIDER` | Legacy: `resend` **or** `smtp` when `MAILGUN_API_KEY` is unset |
+| `RESEND_API_KEY` | Legacy: required when `EMAIL_PROVIDER=resend` |
+| `SMTP_*` | Legacy: required when `EMAIL_PROVIDER=smtp` |
 
 Optional:
 
 | Variable | Purpose |
 | -------- | ------- |
 | `STRIPE_CONNECTED_ACCOUNT_ID` | Phase 2 Connect — must start with `acct_`; enables ~11% platform fee + destination transfer |
-| `RESTAURANT_ID` | Stored in Checkout metadata |
+| `RESTAURANT_ID` | Stored in Checkout metadata (`servingMode` is always `in_store_pickup` on new orders) |
 
 **Stripe key sanity:** keys beginning with `mk_` are **not** Stripe publishable/secret keys. Use Dashboard → Developers → API keys (`pk_…`, `sk_…`). The app throws clear startup/API errors if prefixes are wrong.
 
 After any change to env files, **restart** `npm run dev` so Next.js reloads them.
+
+### Mailgun (transactional email)
+
+1. Create a Mailgun account and add + verify the sending domain (e.g. `merchantorders.io`).
+2. Create a sending API key and set `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM_EMAIL`, and `MAILGUN_FROM_NAME` in `.env.local`.
+3. Ensure DNS records (SPF, DKIM, etc.) from Mailgun are published so inbox placement is good.
+4. When `MAILGUN_API_KEY` is set, paid-order **customer confirmation**, **kitchen new-order**, and **customer status updates** (preparing / ready / completed / cancelled) use Mailgun HTML templates in `lib/emailTemplates/`. If Mailgun is **not** configured, the app falls back to Resend/SMTP when `EMAIL_PROVIDER` is set (see `.env.example`).
+
+**Branding:** Merchant Orders appears only in transactional emails and the Mailgun “from” name — not on the public restaurant website.
 
 ### 3. MongoDB must be running
 
@@ -91,9 +105,10 @@ Open `http://localhost:3000`.
 
 ## Payments & email flow
 
-1. Customer submits checkout → `POST /api/stripe/create-checkout-session` validates the cart **server-side**, creates an **unpaid** MongoDB order, then creates a Stripe Checkout Session (`mode: payment`, currency `cad`, line items from validated menu prices + adjustment line so the session total matches the computed total).
-2. Success redirect → `/payment-success?session_id=…` calls `GET /api/stripe/session-status` for a safe summary (and opportunistically marks the order paid for UX if the webhook is slow — **promo usage + emails remain webhook-driven**).
-3. Stripe sends `checkout.session.completed` to `POST /api/stripe/webhook`. After signature verification, the handler marks the order paid (once), increments promo usage (once), sends restaurant + customer emails (`ORDER_CC_EMAIL` always CC’d on the restaurant dispatch path), and records the Stripe event id to tolerate retries.
+1. Customer submits **pickup-only** checkout → `POST /api/stripe/create-checkout-session` validates the cart **server-side**, creates an **unpaid** MongoDB order (`servingMode: in_store_pickup`, no delivery), then creates a Stripe Checkout Session (`mode: payment`, currency `cad`, line items from validated menu prices + adjustment line so the session total matches the computed total).
+2. Success redirect → `/payment-success?session_id=…` shows a confirmation UI. `GET /api/stripe/session-status` returns a read-only summary for display only (it does **not** mark orders paid — webhook only).
+3. Stripe sends `checkout.session.completed` to `POST /api/stripe/webhook`. After signature verification, the handler marks the order paid (once), increments promo usage (once), sends kitchen + customer confirmation via **Mailgun** when configured (`ORDER_CC_EMAIL` CC’d), sets `confirmationEmailSent` / `merchantNotificationEmailSent` idempotency flags, and records the Stripe event id to tolerate retries.
+4. Admin status changes (`PATCH /api/admin/orders/:id/status`) send Mailgun **status update** emails for preparing / ready / completed / cancelled, deduped with `statusEmailLog`.
 
 **Phase 2 — Stripe Connect:** when `STRIPE_CONNECTED_ACCOUNT_ID` is set and starts with `acct_`, Checkout uses `payment_intent_data.application_fee_amount` (~11%) and `transfer_data.destination` so the platform keeps the fee and the remainder is transferred to the connected account. Without `acct_`, the platform account receives the full amount.
 
@@ -110,11 +125,11 @@ Legacy `POST /api/checkout/create-session` delegates to the same implementation.
 ## Testing checklist (local)
 
 - Wrong `STRIPE_SECRET_KEY` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` prefixes surface clear **503** messages from API routes that touch Stripe.
-- Checkout rejects invalid carts / missing delivery address server-side.
+- Checkout rejects invalid carts server-side; delivery is not offered (pickup-only).
 - Stripe Checkout opens; completing payment lands on `/payment-success`.
 - Cancel returns via `/payment-cancelled`.
-- With Resend or SMTP configured, completing payment delivers email to `RESTAURANT_ORDER_EMAIL` / Settings email with **CC** `ORDER_CC_EMAIL`.
-- Webhook retries do not double-increment promos or re-send mail once `restaurantOrderEmailSent` is true.
+- With Mailgun (or legacy Resend/SMTP), completing payment delivers kitchen + customer emails; webhook retries do not duplicate sends once `confirmationEmailSent` / `merchantNotificationEmailSent` are true.
+- Admin **Orders** → **Enable order alerts** unlocks audio; new orders at the top of the list trigger `/sounds/order-notification.mp3` (after a user gesture).
 - `npm run build` succeeds.
 
 ## Deploying on Vercel

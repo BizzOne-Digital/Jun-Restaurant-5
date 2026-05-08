@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     }
 
     await connectDB();
-    let order = (await Order.findById(orderId).lean()) as OrderDoc | null | undefined;
+    const order = (await Order.findById(orderId).lean()) as OrderDoc | null | undefined;
     if (!order || Array.isArray(order)) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
@@ -36,25 +36,7 @@ export async function GET(req: NextRequest) {
           ? session.payment_intent.id
           : undefined;
 
-    /** UX fallback only — promo usage + emails are handled by the Stripe webhook. */
-    if (session.payment_status === "paid" && order.paymentStatus !== "paid") {
-      await Order.updateOne(
-        { _id: orderId },
-        {
-          $set: {
-            paymentStatus: "paid",
-            orderStatus: "paid",
-            stripeCheckoutSessionId: session.id,
-            ...(piId ? { stripePaymentIntentId: piId } : {}),
-          },
-        }
-      );
-      order = (await Order.findById(orderId).lean()) as OrderDoc | null | undefined;
-      if (!order || Array.isArray(order)) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
-      }
-    }
-
+    /** Read-only for this route — marking paid + emails are handled only by the Stripe webhook. */
     return NextResponse.json({
       payment_status: session.payment_status,
       status: session.status,
@@ -70,6 +52,7 @@ export async function GET(req: NextRequest) {
         total: order.total,
         paymentStatus: order.paymentStatus,
         orderType: order.orderType,
+        servingMode: order.servingMode ?? "in_store_pickup",
         customerName: order.customerName,
         items: order.items?.map((it) => ({
           name: it.name,
@@ -82,6 +65,7 @@ export async function GET(req: NextRequest) {
         discount: order.discount,
         notes: order.notes,
         restaurantOrderEmailSent: order.restaurantOrderEmailSent,
+        merchantNotificationEmailSent: order.merchantNotificationEmailSent,
       },
     });
   } catch (e) {

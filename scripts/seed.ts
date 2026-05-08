@@ -748,6 +748,7 @@ async function main() {
       customerEmail: "demo@onopokebar.com",
       customerPhone: "(416) 000-0001",
       orderType: "pickup",
+      servingMode: "in_store_pickup",
       deliveryAddress: null,
       items: [
         {
@@ -779,14 +780,9 @@ async function main() {
       customerName: "Demo Guest",
       customerEmail: "demo@onopokebar.com",
       customerPhone: "(416) 000-0001",
-      orderType: "delivery",
-      deliveryAddress: {
-        line1: "100 Western Battery Rd #2",
-        city: "Toronto",
-        province: "ON",
-        postal: "M6K3S2",
-        country: "CA",
-      },
+      orderType: "pickup",
+      servingMode: "in_store_pickup",
+      deliveryAddress: null,
       items: [
         {
           menuItemId: classic._id,
@@ -800,13 +796,13 @@ async function main() {
       ],
       subtotal: classic.price,
       tax: 2.33,
-      deliveryFee: 4.99,
+      deliveryFee: 0,
       discount: 0,
-      total: classic.price + 2.33 + 4.99,
+      total: classic.price + 2.33,
       promoCode: "",
       paymentStatus: "unpaid",
       orderStatus: "pending",
-      notes: "Sample pending delivery order",
+      notes: "Sample pending pickup order",
     });
   }
 

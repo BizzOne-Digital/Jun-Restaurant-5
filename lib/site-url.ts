@@ -16,3 +16,10 @@ export function assertPublicSiteUrl(): string {
     throw new Error(`NEXT_PUBLIC_SITE_URL is not a valid URL: "${raw}"`);
   }
 }
+
+/** Join site origin + path without double slashes (base has no trailing slash). */
+export function publicSiteUrlWithPath(path: string): string {
+  const base = assertPublicSiteUrl();
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return `${base}${normalized}`;
+}

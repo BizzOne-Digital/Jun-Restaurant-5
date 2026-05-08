@@ -22,6 +22,10 @@ const UserSchema = new Schema(
     role: { type: String, enum: ["user", "admin"], default: "user" },
     addresses: { type: [AddressSchema], default: [] },
     isBlocked: { type: Boolean, default: false },
+    emailVerified: { type: Boolean, default: false },
+    emailVerifiedAt: { type: Date, default: null },
+    emailVerificationToken: { type: String, default: "" },
+    emailVerificationExpires: { type: Date, default: null },
   },
   { timestamps: true }
 );

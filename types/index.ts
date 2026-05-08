@@ -1,6 +1,8 @@
 import type { Document } from "mongoose";
 
+/** Stored on orders for legacy data; new checkout only creates pickup. */
 export type OrderType = "pickup" | "delivery";
+export type ServingMode = "in_store_pickup";
 export type PaymentStatus = "unpaid" | "paid" | "failed" | "refunded";
 export type OrderStatus =
   | "pending"
