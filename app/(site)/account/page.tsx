@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/site/sign-out-button";
 
 export default async function AccountHomePage() {
   const session = await getSession();
@@ -22,10 +23,11 @@ export default async function AccountHomePage() {
           <p className="text-sm text-rice-400">Track history</p>
         </Link>
       </div>
-      <div className="mt-8">
+      <div className="mt-8 flex flex-wrap items-center gap-3">
         <Link href="/menu">
           <Button>Start an order</Button>
         </Link>
+        <SignOutButton />
       </div>
     </div>
   );

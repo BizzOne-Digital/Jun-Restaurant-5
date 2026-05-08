@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSession } from "next-auth/react";
+import { useSession, signOut } from "next-auth/react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/cn";
 import { useCartStore } from "@/lib/store/cart-store";
@@ -59,6 +59,15 @@ export function Navbar() {
                 )}
               </Link>
             ))}
+            {session?.user && (
+              <button
+                type="button"
+                className="rounded-full px-4 py-2 text-sm font-medium text-rice-200/80 transition-colors hover:bg-white/5 hover:text-rice-50"
+                onClick={() => signOut({ callbackUrl: "/" })}
+              >
+                Sign out
+              </button>
+            )}
             {session?.user?.role === "admin" && (
               <Link
                 href="/admin"
@@ -108,6 +117,16 @@ export function Navbar() {
               </Link>
             );
           })}
+          {session?.user && (
+            <button
+              type="button"
+              className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-rice-400 transition-colors hover:text-rice-50"
+              onClick={() => signOut({ callbackUrl: "/" })}
+            >
+              <span className="text-base leading-none">🚪</span>
+              Sign out
+            </button>
+          )}
           {session?.user?.role === "admin" && (
             <Link
               href="/admin"
