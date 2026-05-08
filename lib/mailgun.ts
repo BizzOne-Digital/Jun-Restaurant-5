@@ -1,16 +1,36 @@
 import Mailgun from "mailgun.js";
 import formData from "form-data";
 
+const DEFAULT_FROM_NAME = "Merchant Orders";
+
 /**
- * Mailgun transactional sending for ONO Poké Bar.
- * Same patterns can be reused from a future React Native / mobile admin app.
+ * Mailgun transactional sending. Configure via env; never hardcode API keys.
  */
 export function isMailgunConfigured(): boolean {
-  return Boolean(
-    process.env.MAILGUN_API_KEY?.trim() &&
-      process.env.MAILGUN_DOMAIN?.trim() &&
-      process.env.MAILGUN_FROM_EMAIL?.trim()
-  );
+  const key = Boolean(process.env.MAILGUN_API_KEY?.trim());
+  const domain = Boolean(process.env.MAILGUN_DOMAIN?.trim());
+  const from =
+    Boolean(process.env.MAILGUN_FROM?.trim()) || Boolean(process.env.MAILGUN_FROM_EMAIL?.trim());
+  return key && domain && from;
+}
+
+/** RFC 5322 From header, e.g. Merchant Orders <orders@merchantorders.io> */
+export function resolveMailgunFromHeader(): string {
+  const combined = process.env.MAILGUN_FROM?.trim();
+  if (combined) {
+    const angle = combined.match(/^(.+?)\s*<([^>]+)>\s*$/);
+    if (angle) return combined;
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(combined)) {
+      return `${DEFAULT_FROM_NAME} <${combined}>`;
+    }
+    return combined;
+  }
+  const email = process.env.MAILGUN_FROM_EMAIL?.trim();
+  if (!email) {
+    throw new Error("Set MAILGUN_FROM (e.g. Merchant Orders <orders@merchantorders.io>) or MAILGUN_FROM_EMAIL");
+  }
+  const name = process.env.MAILGUN_FROM_NAME?.trim() || DEFAULT_FROM_NAME;
+  return `${name} <${email}>`;
 }
 
 function mailgunClient() {
@@ -34,12 +54,7 @@ export type SendMailgunParams = {
 };
 
 export async function sendMailgunEmail(params: SendMailgunParams): Promise<unknown> {
-  const fromEmail = process.env.MAILGUN_FROM_EMAIL?.trim();
-  const fromName = process.env.MAILGUN_FROM_NAME?.trim() || "Merchant Orders";
-  if (!fromEmail) {
-    throw new Error("MAILGUN_FROM_EMAIL is required");
-  }
-  const from = `${fromName} <${fromEmail}>`;
+  const from = resolveMailgunFromHeader();
   const { mg, domain } = mailgunClient();
 
   const to = Array.isArray(params.to) ? params.to : [params.to];

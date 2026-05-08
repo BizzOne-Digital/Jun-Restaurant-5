@@ -134,7 +134,6 @@ export async function POST(req: Request) {
             });
           } catch (mailErr) {
             console.error("Order paid but email failed", mailErr);
-            return NextResponse.json({ error: "Email delivery failed" }, { status: 500 });
           }
         }
       }

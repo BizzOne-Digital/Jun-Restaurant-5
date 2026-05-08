@@ -14,6 +14,15 @@ export function jsonFromDbError(e: unknown, fallback: string) {
     );
   }
 
+  if (msg.includes("E11000") || msg.includes("duplicate key")) {
+    return NextResponse.json(
+      {
+        error: "That value conflicts with another menu record (duplicate slug or unique field). Try a slightly different name.",
+      },
+      { status: 409 }
+    );
+  }
+
   if (
     msg.includes("ECONNREFUSED") ||
     msg.includes("ENOTFOUND") ||

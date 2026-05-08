@@ -4,6 +4,8 @@ import { connectDB } from "@/lib/mongodb";
 import { requireAdmin } from "@/lib/admin-guard";
 import { MenuItem } from "@/models/MenuItem";
 import { slugify } from "@/lib/slug";
+import { allocateUniqueMenuSlug } from "@/lib/menu-slug";
+import { jsonFromDbError } from "@/lib/api-db-error";
 
 const PatchSchema = z
   .object({
@@ -39,7 +41,8 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   const data = parsed.data;
   if (data.name !== undefined) {
     item.name = data.name;
-    item.slug = slugify(data.name);
+    const base = slugify(data.name);
+    item.slug = await allocateUniqueMenuSlug(base, { excludeItemId: ctx.params.id });
   }
   if (data.description !== undefined) item.description = data.description;
   if (data.price !== undefined) item.price = data.price;
@@ -53,7 +56,11 @@ export async function PATCH(req: Request, ctx: { params: { id: string } }) {
   if (data.isSpicy !== undefined) item.isSpicy = data.isSpicy;
   if (data.isVegetarian !== undefined) item.isVegetarian = data.isVegetarian;
 
-  await item.save();
+  try {
+    await item.save();
+  } catch (e) {
+    return jsonFromDbError(e, "Failed to save menu item");
+  }
   const populated = await item.populate("category", "name slug");
   return NextResponse.json({ item: populated });
 }

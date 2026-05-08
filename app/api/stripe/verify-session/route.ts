@@ -106,32 +106,8 @@ export async function POST(req: NextRequest) {
           stripePaymentIntentId: paymentIntentId || undefined,
         });
       } catch (mailErr) {
-        await Order.updateOne(
-          { _id: order._id },
-          {
-            $set: {
-              confirmationEmailStatus: "failed",
-              confirmationEmailError: mailErr instanceof Error ? mailErr.message : "Email delivery failed",
-            },
-          }
-        );
-        throw mailErr;
+        console.error("sendPaidOrderEmails failed after payment", mailErr);
       }
-      await Order.updateOne(
-        { _id: order._id },
-        {
-          $set: {
-            ...(sendCustomer
-              ? {
-                  confirmationEmailSent: true,
-                  confirmationEmailSentAt: new Date(),
-                }
-              : {}),
-            merchantNotificationEmailSent: true,
-            merchantNotificationEmailSentAt: new Date(),
-          },
-        }
-      );
     }
 
     return NextResponse.json({

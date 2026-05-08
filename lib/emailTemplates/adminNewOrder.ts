@@ -1,5 +1,6 @@
 import type { OrderDoc } from "@/models/Order";
 import { RESTAURANT_ADDRESS_LINES, RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
+import { getMerchantOrdersLogoUrl } from "@/lib/email/merchant-orders-logo";
 
 function escapeHtml(s: string): string {
   return s
@@ -11,10 +12,6 @@ function escapeHtml(s: string): string {
 
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
-}
-
-function logoUrl(siteOrigin: string): string {
-  return `${siteOrigin}/email/merchant-orders-logo.png`;
 }
 
 export function buildAdminNewOrderSubject(orderNumber: string, total: number): string {
@@ -36,7 +33,7 @@ export function buildAdminNewOrderHtml(
       )
       .join("") || "";
 
-  const logo = logoUrl(ctx.siteOrigin);
+  const logo = getMerchantOrdersLogoUrl();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -48,7 +45,7 @@ export function buildAdminNewOrderHtml(
         <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
           <tr>
             <td style="padding:20px 24px;text-align:center;border-bottom:1px solid #e5e7eb;">
-              <img src="${logo}" alt="Merchant Orders" width="160" style="max-width:160px;height:auto;" />
+              <img src="${escapeHtml(logo)}" alt="Merchant Orders" width="160" style="max-width:160px;height:auto;" />
             </td>
           </tr>
           <tr>

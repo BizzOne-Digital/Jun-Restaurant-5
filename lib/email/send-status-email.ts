@@ -6,7 +6,8 @@ import { assertPublicSiteUrl } from "@/lib/site-url";
 import {
   buildOrderStatusSubject,
   buildOrderStatusUpdateHtml,
-  type StatusEmailKind,
+  buildOrderStatusUpdateText,
+  type StatusNotifyKind,
 } from "@/lib/emailTemplates/orderStatusUpdate";
 
 const CC_DEFAULT = "junkong68@gmail.com";
@@ -15,24 +16,25 @@ function ccList(): string[] {
   return [(process.env.ORDER_CC_EMAIL?.trim() || CC_DEFAULT).toLowerCase()];
 }
 
-const NOTIFY_STATUSES: StatusEmailKind[] = ["preparing", "ready", "completed", "cancelled"];
+const NOTIFY_STATUSES: StatusNotifyKind[] = ["completed", "cancelled"];
 
-function isStatusEmailKind(s: string): s is StatusEmailKind {
+function isStatusNotifyKind(s: string): s is StatusNotifyKind {
   return (NOTIFY_STATUSES as string[]).includes(s);
 }
 
 /**
- * Sends Mailgun status update to the customer when an admin changes order status.
+ * Sends Mailgun status update to the customer when an admin sets order status to completed or cancelled.
  * Skips if Mailgun is not configured or this status was already emailed (statusEmailLog).
+ * Email failures are logged only — they do not throw.
  */
 export async function sendOrderStatusEmailIfNeeded(order: OrderDoc, previousStatus: string): Promise<void> {
   if (previousStatus === order.orderStatus) return;
-  if (!isStatusEmailKind(order.orderStatus)) return;
+  if (!isStatusNotifyKind(order.orderStatus)) return;
   if (!isMailgunConfigured()) {
     console.info("Order status email skipped: Mailgun not configured");
     return;
   }
-  if (["preparing", "ready", "completed"].includes(order.orderStatus) && order.paymentStatus !== "paid") {
+  if (order.orderStatus === "completed" && order.paymentStatus !== "paid") {
     return;
   }
 
@@ -40,15 +42,16 @@ export async function sendOrderStatusEmailIfNeeded(order: OrderDoc, previousStat
   const fresh = await Order.findById(order._id);
   if (!fresh) return;
 
-  const kind = order.orderStatus as StatusEmailKind;
+  const kind = order.orderStatus as StatusNotifyKind;
   const already = (fresh.statusEmailLog ?? []).some(
     (entry: { status?: string }) => entry.status === order.orderStatus
   );
   if (already) return;
 
   const siteOrigin = assertPublicSiteUrl();
-  const subject = buildOrderStatusSubject(fresh.orderNumber, kind);
+  const subject = buildOrderStatusSubject();
   const html = buildOrderStatusUpdateHtml(fresh, kind, siteOrigin);
+  const text = buildOrderStatusUpdateText(fresh, kind);
 
   try {
     await sendMailgunEmail({
@@ -56,6 +59,7 @@ export async function sendOrderStatusEmailIfNeeded(order: OrderDoc, previousStat
       cc: ccList(),
       subject,
       html,
+      text,
       replyTo: process.env.RESTAURANT_ORDER_EMAIL?.trim() || undefined,
     });
   } catch (e) {

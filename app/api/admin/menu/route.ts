@@ -4,6 +4,7 @@ import { connectDB } from "@/lib/mongodb";
 import { requireAdmin } from "@/lib/admin-guard";
 import { MenuItem } from "@/models/MenuItem";
 import { slugify } from "@/lib/slug";
+import { allocateUniqueMenuSlug } from "@/lib/menu-slug";
 
 const PostSchema = z.object({
   name: z.string().min(1).max(200),
@@ -39,12 +40,8 @@ export async function POST(req: Request) {
   }
 
   await connectDB();
-  let base = slugify(parsed.data.name);
-  let slug = base;
-  let n = 1;
-  while (await MenuItem.exists({ slug })) {
-    slug = `${base}-${n++}`;
-  }
+  const base = slugify(parsed.data.name);
+  const slug = await allocateUniqueMenuSlug(base);
 
   const item = await MenuItem.create({
     ...parsed.data,

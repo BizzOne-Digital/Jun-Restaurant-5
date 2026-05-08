@@ -1,23 +1,77 @@
 import type { OrderDoc } from "@/models/Order";
 import { ESTIMATED_PICKUP_WINDOW, RESTAURANT_ADDRESS_LINES, RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
+import { getMerchantOrdersLogoUrl } from "@/lib/email/merchant-orders-logo";
 
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-function logoUrl(siteOrigin: string): string {
-  // TODO: Replace `public/email/merchant-orders-logo.png` with the official transparent Merchant Orders wordmark when provided.
-  return `${siteOrigin}/email/merchant-orders-logo.png`;
+/** Subject: Order confirmation - {restaurantName} */
+export function buildOrderConfirmationSubject(restaurantName: string = RESTAURANT_DISPLAY_NAME): string {
+  return `Order confirmation - ${restaurantName}`;
 }
 
-export function buildOrderConfirmationSubject(orderNumber: string): string {
-  return `${RESTAURANT_DISPLAY_NAME} - Order Confirmation - Order #${orderNumber}`;
+function customerGreeting(order: OrderDoc): string {
+  const n = order.customerName?.trim();
+  if (!n) return "Hello,";
+  return `Hi ${escapeHtml(n)},`;
+}
+
+function pickupSectionHtml(): string {
+  const window = ESTIMATED_PICKUP_WINDOW.trim();
+  if (!window) return "";
+  return `
+                <tr><td style="font-size:13px;color:#6b7280;">Estimated pickup</td></tr>
+                <tr><td style="font-size:15px;font-weight:600;color:#111827;padding-bottom:12px;">${escapeHtml(window)}</td></tr>`;
+}
+
+function pickupSectionText(): string {
+  const window = ESTIMATED_PICKUP_WINDOW.trim();
+  if (!window) return "";
+  return `Estimated pickup: ${window}\n`;
+}
+
+export function buildOrderConfirmationText(
+  order: OrderDoc,
+  ctx: { stripePaymentIntentId?: string; restaurantName?: string }
+): string {
+  const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const name = order.customerName?.trim();
+  const greet = name ? `Hi ${name},` : "Hello,";
+  const lines =
+    order.items
+      ?.map((it) => `  • ${it.quantity}× ${it.name} @ ${money(it.price)} → ${money(it.quantity * it.price)}`)
+      .join("\n") || "  (items on file)";
+  return [
+    greet,
+    "",
+    `We have received your order at ${restaurant}.`,
+    "",
+    `Order number: ${order.orderNumber}`,
+    `Order ID: ${order._id}`,
+    pickupSectionText().trimEnd(),
+    `Order total: ${money(order.total)}`,
+    ctx.stripePaymentIntentId ? `Payment reference: ${ctx.stripePaymentIntentId}` : "",
+    "",
+    "We'll prepare your pickup order and contact you if anything changes.",
+    "",
+    "Order items",
+    lines,
+    "",
+    "Pickup location",
+    ...RESTAURANT_ADDRESS_LINES.map((l) => `  ${l}`),
+    "",
+    "— Merchant Orders (on behalf of the restaurant)",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function buildOrderConfirmationHtml(
   order: OrderDoc,
-  ctx: { siteOrigin: string; stripePaymentIntentId?: string }
+  ctx: { siteOrigin: string; stripePaymentIntentId?: string; restaurantName?: string }
 ): string {
+  const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
   const servingLabel = "In-store pickup";
   const rows =
     order.items
@@ -31,7 +85,7 @@ export function buildOrderConfirmationHtml(
       )
       .join("") || "";
 
-  const logo = logoUrl(ctx.siteOrigin);
+  const logo = getMerchantOrdersLogoUrl();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -42,26 +96,30 @@ export function buildOrderConfirmationHtml(
       <td align="center">
         <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
           <tr>
-            <td style="padding:24px 28px 8px;text-align:center;border-bottom:1px solid #e5e7eb;">
-              <img src="${logo}" alt="Merchant Orders" width="180" style="max-width:180px;height:auto;display:inline-block;" />
+            <td style="padding:24px 28px 8px;text-align:center;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+              <img src="${escapeHtml(logo)}" alt="Merchant Orders" width="180" style="max-width:180px;height:auto;display:inline-block;" />
             </td>
           </tr>
           <tr>
             <td style="padding:24px 28px 8px;">
-              <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111827;">${escapeHtml(RESTAURANT_DISPLAY_NAME)}</p>
-              <p style="margin:0;font-size:15px;color:#374151;">Hi ${escapeHtml(order.customerName)},</p>
-              <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151;">Thank you for your order. Here is your confirmation.</p>
+              <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Merchant Orders</p>
+              <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111827;">${escapeHtml(restaurant)}</p>
+              <p style="margin:0;font-size:15px;color:#374151;">${customerGreeting(order)}</p>
+              <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151;">We have <strong>received your order</strong>. Thank you — the restaurant will prepare it for pickup.</p>
             </td>
           </tr>
           <tr>
             <td style="padding:8px 28px 20px;">
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f9fafb;border-radius:8px;padding:16px;">
                 <tr><td style="font-size:13px;color:#6b7280;">Order number</td></tr>
-                <tr><td style="font-size:16px;font-weight:700;color:#111827;padding-bottom:12px;">${escapeHtml(order.orderNumber)}</td></tr>
-                <tr><td style="font-size:13px;color:#6b7280;">Estimated pickup</td></tr>
-                <tr><td style="font-size:15px;font-weight:600;color:#111827;padding-bottom:12px;">${ESTIMATED_PICKUP_WINDOW}</td></tr>
+                <tr><td style="font-size:16px;font-weight:700;color:#111827;padding-bottom:8px;">${escapeHtml(order.orderNumber)}</td></tr>
+                <tr><td style="font-size:13px;color:#6b7280;">Order ID</td></tr>
+                <tr><td style="font-size:13px;font-family:monospace;color:#111827;padding-bottom:12px;word-break:break-all;">${escapeHtml(String(order._id))}</td></tr>
+                ${pickupSectionHtml()}
                 <tr><td style="font-size:13px;color:#6b7280;">Serving mode</td></tr>
                 <tr><td style="font-size:15px;font-weight:600;color:#111827;padding-bottom:12px;">${servingLabel}</td></tr>
+                <tr><td style="font-size:13px;color:#6b7280;">Order total</td></tr>
+                <tr><td style="font-size:16px;font-weight:700;color:#111827;padding-bottom:12px;">${money(order.total)}</td></tr>
                 <tr><td style="font-size:13px;color:#6b7280;">Payment</td></tr>
                 <tr><td style="font-size:15px;color:#111827;">Payment processed successfully via Stripe.${ctx.stripePaymentIntentId ? ` Reference: ${escapeHtml(ctx.stripePaymentIntentId)}.` : ""}</td></tr>
               </table>
@@ -101,8 +159,8 @@ export function buildOrderConfirmationHtml(
           </tr>
           <tr>
             <td style="padding:16px 28px 28px;background:#f9fafb;text-align:center;font-size:12px;color:#6b7280;line-height:1.5;">
-              This is an automated notification. Please do not reply.<br/>
-              Powered by Merchant Orders
+              This is an automated message from Merchant Orders on behalf of ${escapeHtml(restaurant)}.<br/>
+              Please contact the restaurant with questions about your order.
             </td>
           </tr>
         </table>

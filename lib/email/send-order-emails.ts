@@ -5,7 +5,11 @@ import type { OrderDoc } from "@/models/Order";
 import { Order } from "@/models/Order";
 import { assertPublicSiteUrl } from "@/lib/site-url";
 import { sendMailgunEmail, isMailgunConfigured } from "@/lib/mailgun";
-import { buildOrderConfirmationHtml, buildOrderConfirmationSubject } from "@/lib/emailTemplates/orderConfirmation";
+import {
+  buildOrderConfirmationHtml,
+  buildOrderConfirmationSubject,
+  buildOrderConfirmationText,
+} from "@/lib/emailTemplates/orderConfirmation";
 import { buildAdminNewOrderHtml, buildAdminNewOrderSubject } from "@/lib/emailTemplates/adminNewOrder";
 
 const CC_DEFAULT = "junkong68@gmail.com";
@@ -238,26 +242,34 @@ async function sendPaidOrderEmailsMailgun(
   if (customerDone && merchantDone) return;
 
   if (!merchantDone) {
-    await sendMailgunEmail({
-      to: restaurantTo,
-      cc: [cc],
-      bcc,
-      replyTo: o.customerEmail,
-      subject: buildAdminNewOrderSubject(o.orderNumber, o.total),
-      html: buildAdminNewOrderHtml(o, { siteOrigin, stripeSessionId: ctx.stripeSessionId, stripePaymentIntentId: ctx.stripePaymentIntentId }),
-    });
-    const now = new Date();
-    await Order.updateOne(
-      { _id: o._id },
-      {
-        $set: {
-          merchantNotificationEmailSent: true,
-          merchantNotificationEmailSentAt: now,
-          restaurantOrderEmailSent: true,
-          restaurantOrderEmailSentAt: now,
-        },
-      }
-    );
+    try {
+      await sendMailgunEmail({
+        to: restaurantTo,
+        cc: [cc],
+        bcc,
+        replyTo: o.customerEmail,
+        subject: buildAdminNewOrderSubject(o.orderNumber, o.total),
+        html: buildAdminNewOrderHtml(o, {
+          siteOrigin,
+          stripeSessionId: ctx.stripeSessionId,
+          stripePaymentIntentId: ctx.stripePaymentIntentId,
+        }),
+      });
+      const now = new Date();
+      await Order.updateOne(
+        { _id: o._id },
+        {
+          $set: {
+            merchantNotificationEmailSent: true,
+            merchantNotificationEmailSentAt: now,
+            restaurantOrderEmailSent: true,
+            restaurantOrderEmailSentAt: now,
+          },
+        }
+      );
+    } catch (merchantErr) {
+      console.error("Mailgun restaurant/kitchen notification failed", merchantErr);
+    }
   }
 
   if (sendCustomer && !o.confirmationEmailSent) {
@@ -269,11 +281,12 @@ async function sendPaidOrderEmailsMailgun(
         to: latest.customerEmail,
         cc: [cc],
         replyTo: restaurantTo,
-        subject: buildOrderConfirmationSubject(latest.orderNumber),
+        subject: buildOrderConfirmationSubject(),
         html: buildOrderConfirmationHtml(latest, {
           siteOrigin,
           stripePaymentIntentId: ctx.stripePaymentIntentId,
         }),
+        text: buildOrderConfirmationText(latest, { stripePaymentIntentId: ctx.stripePaymentIntentId }),
       });
       const now = new Date();
       await Order.updateOne(
@@ -289,6 +302,7 @@ async function sendPaidOrderEmailsMailgun(
         }
       );
     } catch (customerErr) {
+      console.error("Mailgun customer order confirmation failed", customerErr);
       await Order.updateOne(
         { _id: latest._id },
         {
@@ -298,7 +312,6 @@ async function sendPaidOrderEmailsMailgun(
           },
         }
       );
-      throw customerErr;
     }
   } else if (!sendCustomer) {
     await Order.updateOne({ _id: order._id }, { $set: { confirmationEmailStatus: "skipped" } });
