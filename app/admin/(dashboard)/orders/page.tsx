@@ -154,7 +154,7 @@ export default function AdminOrdersPage() {
                 <td className="px-4 py-3 font-semibold text-rice-100">
                   <Link
                     href={`/admin/orders/${o._id}`}
-                    className="text-mango-300 hover:underline"
+                    className="text-rice-50 hover:underline"
                     title="View order details"
                   >
                     {o.orderNumber}
@@ -205,7 +205,7 @@ export default function AdminOrdersPage() {
                 <div>
                   <Link
                     href={`/admin/orders/${o._id}`}
-                    className="font-semibold text-mango-300 hover:underline"
+                    className="font-semibold text-rice-50 hover:underline"
                   >
                     {o.orderNumber}
                   </Link>
