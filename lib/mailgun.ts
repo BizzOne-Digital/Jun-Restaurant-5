@@ -1,7 +1,6 @@
 import Mailgun from "mailgun.js";
 import formData from "form-data";
-
-const DEFAULT_FROM_NAME = "Merchant Orders";
+import { RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
 
 /**
  * Mailgun transactional sending. Configure via env; never hardcode API keys.
@@ -14,22 +13,28 @@ export function isMailgunConfigured(): boolean {
   return key && domain && from;
 }
 
-/** RFC 5322 From header, e.g. Merchant Orders <orders@merchantorders.io> */
+/**
+ * RFC 5322 From header. The display name comes from MAILGUN_FROM_NAME or the
+ * restaurant's public display name — never a generic platform brand.
+ */
 export function resolveMailgunFromHeader(): string {
+  const fallbackName = RESTAURANT_DISPLAY_NAME;
   const combined = process.env.MAILGUN_FROM?.trim();
   if (combined) {
     const angle = combined.match(/^(.+?)\s*<([^>]+)>\s*$/);
     if (angle) return combined;
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(combined)) {
-      return `${DEFAULT_FROM_NAME} <${combined}>`;
+      return `${fallbackName} <${combined}>`;
     }
     return combined;
   }
   const email = process.env.MAILGUN_FROM_EMAIL?.trim();
   if (!email) {
-    throw new Error("Set MAILGUN_FROM (e.g. Merchant Orders <orders@merchantorders.io>) or MAILGUN_FROM_EMAIL");
+    throw new Error(
+      `Set MAILGUN_FROM (e.g. ${fallbackName} <orders@yourdomain.com>) or MAILGUN_FROM_EMAIL`
+    );
   }
-  const name = process.env.MAILGUN_FROM_NAME?.trim() || DEFAULT_FROM_NAME;
+  const name = process.env.MAILGUN_FROM_NAME?.trim() || fallbackName;
   return `${name} <${email}>`;
 }
 

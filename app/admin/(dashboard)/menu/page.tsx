@@ -48,11 +48,16 @@ export default function AdminMenuPage() {
   }, []);
 
   const toggle = async (id: string, isAvailable: boolean) => {
-    await fetch(`/api/admin/menu/${id}`, {
+    const res = await fetch(`/api/admin/menu/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ isAvailable: !isAvailable }),
     });
+    if (!res.ok) {
+      toast.error("Failed to update visibility");
+      return;
+    }
+    toast.success(isAvailable ? "Item hidden from customers" : "Item shown to customers");
     load();
   };
 
@@ -148,7 +153,14 @@ export default function AdminMenuPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="font-display text-2xl">Menu</h2>
+      <div>
+        <h2 className="font-display text-2xl">Menu</h2>
+        <p className="mt-1 text-sm text-rice-400">
+          Use <span className="font-semibold text-mango-300">Hide</span> to remove an item from the public menu without
+          deleting it. Hidden items stay in the database and can be shown again at any time. Customers cannot see, search,
+          or check out hidden items.
+        </p>
+      </div>
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
         <p className="text-sm font-semibold text-rice-100">Quick add</p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 md:grid-cols-4">
@@ -185,13 +197,16 @@ export default function AdminMenuPage() {
               <th className="px-4 py-3">Name</th>
               <th className="px-4 py-3">Category</th>
               <th className="px-4 py-3">Price</th>
-              <th className="px-4 py-3">Available</th>
+              <th className="px-4 py-3">Visibility</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
           <tbody>
             {items.map((it) => (
-              <tr key={it._id} className="border-t border-white/5">
+              <tr
+                key={it._id}
+                className={`border-t border-white/5 ${!it.isAvailable && editingId !== it._id ? "opacity-60" : ""}`}
+              >
                 {editingId === it._id ? (
                   <>
                     <td className="px-4 py-3">
@@ -227,7 +242,7 @@ export default function AdminMenuPage() {
                           checked={editForm.isAvailable}
                           onChange={(e) => setEditForm((f) => ({ ...f, isAvailable: e.target.checked }))}
                         />
-                        Available
+                        Visible to customers
                       </label>
                     </td>
                     <td className="px-4 py-3">
@@ -249,14 +264,26 @@ export default function AdminMenuPage() {
                 ) : (
                   <>
                     <td className="px-4 py-3 font-semibold text-rice-100">
-                      {it.name}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span>{it.name}</span>
+                        {!it.isAvailable && (
+                          <span className="rounded-full border border-coral-300/40 bg-coral-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coral-200">
+                            Hidden
+                          </span>
+                        )}
+                      </div>
                       {it.description ? <p className="mt-1 text-xs text-rice-500">{it.description}</p> : null}
                     </td>
                     <td className="px-4 py-3 text-rice-400">{it.category?.name}</td>
                     <td className="px-4 py-3">${it.price.toFixed(2)}</td>
                     <td className="px-4 py-3">
-                      <button type="button" className="text-xs text-mango-300 hover:underline" onClick={() => toggle(it._id, it.isAvailable)}>
-                        {it.isAvailable ? "Disable" : "Enable"}
+                      <button
+                        type="button"
+                        className={`text-xs font-semibold hover:underline ${it.isAvailable ? "text-coral-300" : "text-avocado-300"}`}
+                        onClick={() => toggle(it._id, it.isAvailable)}
+                        title={it.isAvailable ? "Hide from public menu" : "Show on public menu"}
+                      >
+                        {it.isAvailable ? "Hide" : "Show"}
                       </button>
                     </td>
                     <td className="px-4 py-3">
@@ -284,14 +311,25 @@ export default function AdminMenuPage() {
         {/* Mobile cards */}
         <div className="divide-y divide-white/5 md:hidden">
           {items.map((it) => (
-            <div key={it._id} className="space-y-3 p-4">
+            <div key={it._id} className={`space-y-3 p-4 ${!it.isAvailable ? "opacity-60" : ""}`}>
               <div>
-                <p className="font-semibold text-rice-100">{it.name}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="font-semibold text-rice-100">{it.name}</p>
+                  {!it.isAvailable && (
+                    <span className="rounded-full border border-coral-300/40 bg-coral-300/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-coral-200">
+                      Hidden
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-rice-400">{it.category?.name} · ${it.price.toFixed(2)}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-xs">
-                <button type="button" className="text-mango-300 hover:underline" onClick={() => toggle(it._id, it.isAvailable)}>
-                  {it.isAvailable ? "Disable" : "Enable"}
+                <button
+                  type="button"
+                  className={`font-semibold hover:underline ${it.isAvailable ? "text-coral-300" : "text-avocado-300"}`}
+                  onClick={() => toggle(it._id, it.isAvailable)}
+                >
+                  {it.isAvailable ? "Hide" : "Show"}
                 </button>
                 <button type="button" className="text-ocean-300 hover:underline" onClick={() => startEdit(it)}>
                   Edit

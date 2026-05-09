@@ -1,6 +1,15 @@
 import type { OrderDoc } from "@/models/Order";
 import { RESTAURANT_ADDRESS_LINES, RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
-import { getMerchantOrdersLogoUrl } from "@/lib/email/merchant-orders-logo";
+
+export type AdminNewOrderContext = {
+  siteOrigin: string;
+  stripeSessionId: string;
+  stripePaymentIntentId?: string;
+  restaurantName?: string;
+  /** Absolute logo URL — when null/undefined, the header shows the restaurant name as text. */
+  logoUrl?: string | null;
+  addressLines?: readonly string[];
+};
 
 function escapeHtml(s: string): string {
   return s
@@ -14,14 +23,17 @@ function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
 
-export function buildAdminNewOrderSubject(orderNumber: string, total: number): string {
-  return `[New order] ${RESTAURANT_DISPLAY_NAME} ${orderNumber} — ${money(total)} paid`;
+export function buildAdminNewOrderSubject(
+  orderNumber: string,
+  total: number,
+  restaurantName: string = RESTAURANT_DISPLAY_NAME
+): string {
+  return `[New order] ${restaurantName} ${orderNumber} — ${money(total)} paid`;
 }
 
-export function buildAdminNewOrderHtml(
-  order: OrderDoc,
-  ctx: { siteOrigin: string; stripeSessionId: string; stripePaymentIntentId?: string }
-): string {
+export function buildAdminNewOrderHtml(order: OrderDoc, ctx: AdminNewOrderContext): string {
+  const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const addressLines = ctx.addressLines ?? RESTAURANT_ADDRESS_LINES;
   const rows =
     order.items
       ?.map(
@@ -33,7 +45,9 @@ export function buildAdminNewOrderHtml(
       )
       .join("") || "";
 
-  const logo = getMerchantOrdersLogoUrl();
+  const logoBlock = ctx.logoUrl
+    ? `<img src="${escapeHtml(ctx.logoUrl)}" alt="${escapeHtml(restaurant)}" width="160" style="max-width:160px;height:auto;" />`
+    : `<p style="margin:0;font-size:18px;font-weight:700;color:#111827;letter-spacing:0.02em;">${escapeHtml(restaurant)}</p>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -45,12 +59,12 @@ export function buildAdminNewOrderHtml(
         <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
           <tr>
             <td style="padding:20px 24px;text-align:center;border-bottom:1px solid #e5e7eb;">
-              <img src="${escapeHtml(logo)}" alt="Merchant Orders" width="160" style="max-width:160px;height:auto;" />
+              ${logoBlock}
             </td>
           </tr>
           <tr>
             <td style="padding:20px 24px;">
-              <p style="margin:0 0 6px;font-size:18px;font-weight:700;">New paid order — ${escapeHtml(RESTAURANT_DISPLAY_NAME)}</p>
+              <p style="margin:0 0 6px;font-size:18px;font-weight:700;">New paid order — ${escapeHtml(restaurant)}</p>
               <p style="margin:0;font-size:14px;color:#374151;">Order <strong>${escapeHtml(order.orderNumber)}</strong> · In-store pickup</p>
               <p style="margin:12px 0 0;font-size:13px;color:#6b7280;">Stripe Checkout: ${escapeHtml(ctx.stripeSessionId)}${
                 ctx.stripePaymentIntentId ? `<br/>Payment Intent: ${escapeHtml(ctx.stripePaymentIntentId)}` : ""
@@ -79,12 +93,12 @@ export function buildAdminNewOrderHtml(
           </tr>
           <tr>
             <td style="padding:12px 24px 24px;border-top:1px solid #e5e7eb;">
-              <p style="margin:0;font-size:13px;color:#374151;">${RESTAURANT_ADDRESS_LINES.map((l) => escapeHtml(l)).join(" · ")}</p>
+              <p style="margin:0;font-size:13px;color:#374151;">${addressLines.map((l) => escapeHtml(l)).join(" · ")}</p>
             </td>
           </tr>
           <tr>
             <td style="padding:14px 24px 22px;background:#f9fafb;text-align:center;font-size:11px;color:#6b7280;">
-              Merchant Orders · automated kitchen notification
+              Automated kitchen notification — ${escapeHtml(restaurant)}
             </td>
           </tr>
         </table>

@@ -12,6 +12,7 @@ const PatchSchema = z.object({
   openingHours: z.string().max(1000).optional(),
   logo: z.string().max(2000).optional(),
   heroImages: z.array(z.string()).optional(),
+  pickupPrepareTimeMinutes: z.coerce.number().int().min(1).max(240).optional(),
   socialLinks: z
     .object({
       instagram: z.string().optional(),
@@ -51,6 +52,7 @@ export async function PATCH(req: Request) {
       socialLinks: {},
       logo: "/images/logo.png",
       heroImages: [],
+      pickupPrepareTimeMinutes: 20,
     });
   }
 

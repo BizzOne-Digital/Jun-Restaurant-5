@@ -1,4 +1,4 @@
-/** Public restaurant identity — never use Merchant Orders branding on the website. */
+/** Public restaurant identity used as a fallback when SiteSetting is missing. */
 export const RESTAURANT_DISPLAY_NAME = "ONO Poké Bar";
 export const RESTAURANT_ADDRESS_LINES = [
   "ONO Poké Bar",
@@ -6,5 +6,11 @@ export const RESTAURANT_ADDRESS_LINES = [
   "Toronto, ON M6K 3S2",
 ] as const;
 
-/** Shown in emails and success UI until configurable per-tenant SLA exists. */
-export const ESTIMATED_PICKUP_WINDOW = "25–40 minutes";
+/** Default fallback prep time in minutes when SiteSetting has none configured. */
+export const DEFAULT_PICKUP_PREPARE_MINUTES = 20;
+
+/** Format minutes as a human label, e.g. "20 minutes" or "1 minute". */
+export function formatPickupPrepareWindow(minutes: number): string {
+  const m = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : DEFAULT_PICKUP_PREPARE_MINUTES;
+  return `${m} ${m === 1 ? "minute" : "minutes"}`;
+}

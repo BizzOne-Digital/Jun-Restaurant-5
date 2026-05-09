@@ -51,12 +51,39 @@ function ConfirmationShell({
   );
 }
 
+const DEFAULT_PREP_MINUTES = 20;
+
+function formatPrepWindow(minutes: number): string {
+  const m = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : DEFAULT_PREP_MINUTES;
+  return `${m} ${m === 1 ? "minute" : "minutes"}`;
+}
+
 export function PaymentSuccessContent() {
   const params = useSearchParams();
   const sessionId = params.get("session_id");
   const [state, setState] = React.useState<"idle" | "loading" | "ok" | "error">("idle");
   const [payload, setPayload] = React.useState<SessionStatusPayload | null>(null);
   const [errorMessage, setErrorMessage] = React.useState("");
+  const [prepMinutes, setPrepMinutes] = React.useState<number>(DEFAULT_PREP_MINUTES);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    fetch("/api/site-settings")
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return;
+        const v = d?.settings?.pickupPrepareTimeMinutes;
+        if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+          setPrepMinutes(v);
+        }
+      })
+      .catch(() => {
+        /* keep default */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   React.useEffect(() => {
     if (!sessionId) {
@@ -175,7 +202,7 @@ export function PaymentSuccessContent() {
         </p>
         <p className="mt-4 text-sm text-rice-400">Order <span className="font-semibold text-rice-100">{payload?.orderNumber ?? "—"}</span></p>
         <p className="mt-4 text-center text-sm text-rice-400">
-          Estimated pickup time: <span className="font-semibold text-mango-300">25–40 minutes</span>
+          Estimated pickup time: <span className="font-semibold text-mango-300">{formatPrepWindow(prepMinutes)}</span>
         </p>
         <p className="mt-1 text-center text-xs text-rice-500">Pickup only · In-store pickup</p>
 

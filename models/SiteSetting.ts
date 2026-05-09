@@ -19,6 +19,9 @@ const SiteSettingSchema = new Schema(
     socialLinks: { type: SocialLinksSchema, default: {} },
     logo: { type: String, default: "/images/logo.png" },
     heroImages: { type: [String], default: [] },
+    /** Restaurant-controlled estimate (in minutes) shown to the customer on the
+     * payment-success page and in the order confirmation email. */
+    pickupPrepareTimeMinutes: { type: Number, default: 20, min: 1, max: 240 },
   },
   { timestamps: true }
 );

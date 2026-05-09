@@ -33,8 +33,8 @@ Copy `.env.example` to `.env.local` and fill in real values. **Never commit `.en
 | `ORDER_CC_EMAIL` | CC on transactional order emails (defaults to `junkong68@gmail.com` in code if unset) |
 | `MAILGUN_API_KEY` | Mailgun private API key (recommended for production transactional email) |
 | `MAILGUN_DOMAIN` | Sending domain verified in Mailgun (e.g. `merchantorders.io`) |
-| `MAILGUN_FROM_EMAIL` | Verified sender address (e.g. `orders@merchantorders.io`) |
-| `MAILGUN_FROM_NAME` | Display name on outbound mail (e.g. `Merchant Orders`) |
+| `MAILGUN_FROM_EMAIL` | Verified sender address (e.g. `orders@your-domain.com`) |
+| `MAILGUN_FROM_NAME` | Display name on outbound mail. Leave empty to use the restaurant name from **Admin → Settings**. |
 | `ADMIN_ORDER_EMAIL` | Optional BCC for new-order Mailgun email when different from `RESTAURANT_ORDER_EMAIL` |
 | `ORDER_FROM_EMAIL` | Legacy: from address when **not** using Mailgun |
 | `EMAIL_PROVIDER` | Legacy: `resend` **or** `smtp` when `MAILGUN_API_KEY` is unset |
@@ -54,12 +54,12 @@ After any change to env files, **restart** `npm run dev` so Next.js reloads them
 
 ### Mailgun (transactional email)
 
-1. Create a Mailgun account and add + verify the sending domain (e.g. `merchantorders.io`).
-2. Create a sending API key and set `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, `MAILGUN_FROM_EMAIL`, and `MAILGUN_FROM_NAME` in `.env.local`.
+1. Create a Mailgun account and add + verify the sending domain (e.g. `your-domain.com`).
+2. Create a sending API key and set `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, and `MAILGUN_FROM_EMAIL` in `.env.local`. Leave `MAILGUN_FROM_NAME` empty to fall back to the restaurant display name.
 3. Ensure DNS records (SPF, DKIM, etc.) from Mailgun are published so inbox placement is good.
 4. When `MAILGUN_API_KEY` is set, paid-order **customer confirmation**, **kitchen new-order**, and **customer status updates** (preparing / ready / completed / cancelled) use Mailgun HTML templates in `lib/emailTemplates/`. If Mailgun is **not** configured, the app falls back to Resend/SMTP when `EMAIL_PROVIDER` is set (see `.env.example`).
 
-**Branding:** Merchant Orders appears only in transactional emails and the Mailgun “from” name — not on the public restaurant website.
+**Branding:** Customer + kitchen emails are branded with the restaurant name and the logo configured in **Admin → Settings**. The logo URL must be reachable from the public internet for it to render in email clients (use the upload field in Admin → Settings, or paste a hosted HTTPS URL).
 
 ### 3. MongoDB must be running
 
@@ -68,7 +68,10 @@ After any change to env files, **restart** `npm run dev` so Next.js reloads them
 
 ### 4. Brand logo
 
-Place the circular ONO logo at `public/images/logo.png`.
+Place the circular ONO logo at `public/images/logo.png` (used by the public website by default). For the **order confirmation email**, the logo URL is read from `SiteSetting.logo` (configurable via **Admin → Settings → Logo**). It must resolve to a publicly reachable URL — either:
+
+- upload an image through **Admin → Settings → Logo → Upload** (saved to `public/uploads/` and served at `/uploads/<filename>`, which becomes a public URL once the site is deployed); or
+- paste a hosted HTTPS URL (e.g. CDN, Cloudinary, S3) into the **Logo URL** field.
 
 ### 5. Seed the database
 

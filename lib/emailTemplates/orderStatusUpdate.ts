@@ -1,9 +1,15 @@
 import type { OrderDoc } from "@/models/Order";
 import { RESTAURANT_ADDRESS_LINES, RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
-import { getMerchantOrdersLogoUrl } from "@/lib/email/merchant-orders-logo";
 
 /** Status emails are sent to customers only for these transitions (not preparing / ready / accepted). */
 export type StatusNotifyKind = "completed" | "cancelled";
+
+export type OrderStatusEmailContext = {
+  restaurantName?: string;
+  /** Absolute logo URL — when null/undefined, the header shows the restaurant name as text. */
+  logoUrl?: string | null;
+  addressLines?: readonly string[];
+};
 
 function escapeHtml(s: string): string {
   return s
@@ -38,8 +44,13 @@ function customerGreeting(order: OrderDoc): string {
   return `Hi ${escapeHtml(n)},`;
 }
 
-export function buildOrderStatusUpdateText(order: OrderDoc, status: StatusNotifyKind, restaurantName?: string): string {
-  const restaurant = restaurantName ?? RESTAURANT_DISPLAY_NAME;
+export function buildOrderStatusUpdateText(
+  order: OrderDoc,
+  status: StatusNotifyKind,
+  ctx: OrderStatusEmailContext = {}
+): string {
+  const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const addressLines = ctx.addressLines ?? RESTAURANT_ADDRESS_LINES;
   const name = order.customerName?.trim();
   const greet = name ? `Hi ${name},` : "Hello,";
   return [
@@ -53,22 +64,25 @@ export function buildOrderStatusUpdateText(order: OrderDoc, status: StatusNotify
     `Status: ${status}`,
     `Order total: ${money(order.total)}`,
     "",
-    ...RESTAURANT_ADDRESS_LINES.map((l) => `  ${l}`),
+    ...addressLines.map((l) => `  ${l}`),
     "",
-    "— Merchant Orders (on behalf of the restaurant)",
+    `— ${restaurant}`,
   ].join("\n");
 }
 
 export function buildOrderStatusUpdateHtml(
   order: OrderDoc,
   status: StatusNotifyKind,
-  _siteOrigin: string,
-  restaurantName?: string
+  ctx: OrderStatusEmailContext = {}
 ): string {
-  const restaurant = restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const addressLines = ctx.addressLines ?? RESTAURANT_ADDRESS_LINES;
   const colors = badgeColor(status);
-  const logo = getMerchantOrdersLogoUrl();
   const statusLabel = status === "completed" ? "Completed" : "Cancelled";
+
+  const logoBlock = ctx.logoUrl
+    ? `<img src="${escapeHtml(ctx.logoUrl)}" alt="${escapeHtml(restaurant)}" width="180" style="max-width:180px;height:auto;display:inline-block;" />`
+    : `<p style="margin:0;font-size:20px;font-weight:700;color:#111827;letter-spacing:0.02em;">${escapeHtml(restaurant)}</p>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -79,13 +93,12 @@ export function buildOrderStatusUpdateHtml(
       <td align="center">
         <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
           <tr>
-            <td style="padding:24px 28px 8px;text-align:center;border-bottom:1px solid #e5e7eb;background:#fafafa;">
-              <img src="${escapeHtml(logo)}" alt="Merchant Orders" width="180" style="max-width:180px;height:auto;display:inline-block;" />
+            <td style="padding:24px 28px 16px;text-align:center;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+              ${logoBlock}
             </td>
           </tr>
           <tr>
             <td style="padding:24px 28px 8px;">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Merchant Orders</p>
               <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111827;">${escapeHtml(restaurant)}</p>
               <p style="margin:0;font-size:15px;color:#374151;">${customerGreeting(order)}</p>
               <p style="margin:18px 0 0;font-size:15px;line-height:1.55;color:#374151;">${escapeHtml(messageForStatus(status))}</p>
@@ -107,14 +120,16 @@ export function buildOrderStatusUpdateHtml(
           <tr>
             <td style="padding:8px 28px 24px;border-top:1px solid #e5e7eb;">
               <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#111827;">Restaurant</p>
-              ${RESTAURANT_ADDRESS_LINES.map(
-                (line) => `<p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">${escapeHtml(line)}</p>`
-              ).join("")}
+              ${addressLines
+                .map(
+                  (line) => `<p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">${escapeHtml(line)}</p>`
+                )
+                .join("")}
             </td>
           </tr>
           <tr>
             <td style="padding:16px 28px 28px;background:#f9fafb;text-align:center;font-size:12px;color:#6b7280;line-height:1.5;">
-              This is an automated message from Merchant Orders on behalf of ${escapeHtml(restaurant)}.<br/>
+              This is an automated message from ${escapeHtml(restaurant)}.<br/>
               Please contact the restaurant with questions about your order.
             </td>
           </tr>

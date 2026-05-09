@@ -1,6 +1,5 @@
 import nodemailer from "nodemailer";
 import { connectDB } from "@/lib/mongodb";
-import { SiteSetting } from "@/models/SiteSetting";
 import type { OrderDoc } from "@/models/Order";
 import { Order } from "@/models/Order";
 import { assertPublicSiteUrl } from "@/lib/site-url";
@@ -11,6 +10,8 @@ import {
   buildOrderConfirmationText,
 } from "@/lib/emailTemplates/orderConfirmation";
 import { buildAdminNewOrderHtml, buildAdminNewOrderSubject } from "@/lib/emailTemplates/adminNewOrder";
+import { loadRestaurantEmailContext } from "@/lib/email/restaurant-context";
+import { RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
 
 const CC_DEFAULT = "junkong68@gmail.com";
 
@@ -75,8 +76,9 @@ export function buildRestaurantOrderEmailBody(
 
 export function buildCustomerConfirmationBody(
   order: OrderDoc,
-  ctx: { stripeSessionId: string; stripePaymentIntentId?: string }
+  ctx: { stripeSessionId: string; stripePaymentIntentId?: string; restaurantName?: string }
 ): string {
+  const restaurant = ctx.restaurantName?.trim() || RESTAURANT_DISPLAY_NAME;
   return [
     `Hi ${order.customerName},`,
     ``,
@@ -89,7 +91,7 @@ export function buildCustomerConfirmationBody(
     ``,
     `We'll prepare your in-store pickup order and contact you if anything changes.`,
     ``,
-    `— ${order.customerName ? "ONO Poké Bar" : "Restaurant"}`,
+    `— ${restaurant}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -198,9 +200,8 @@ async function sendPaidOrderEmailsMailgun(
   ctx: { stripeSessionId: string; stripePaymentIntentId?: string }
 ) {
   const siteOrigin = assertPublicSiteUrl();
-  const settings = await SiteSetting.findOne().sort({ updatedAt: -1 }).lean<{ email?: string } | null>();
-  const restaurantTo =
-    process.env.RESTAURANT_ORDER_EMAIL?.trim() || settings?.email?.trim();
+  const restaurantCtx = await loadRestaurantEmailContext(siteOrigin);
+  const restaurantTo = process.env.RESTAURANT_ORDER_EMAIL?.trim() || restaurantCtx.email || undefined;
   if (!restaurantTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(restaurantTo)) {
     throw new Error(
       "Restaurant order email is not configured. Set RESTAURANT_ORDER_EMAIL or SiteSetting.email in the database."
@@ -248,11 +249,13 @@ async function sendPaidOrderEmailsMailgun(
         cc: [cc],
         bcc,
         replyTo: o.customerEmail,
-        subject: buildAdminNewOrderSubject(o.orderNumber, o.total),
+        subject: buildAdminNewOrderSubject(o.orderNumber, o.total, restaurantCtx.restaurantName),
         html: buildAdminNewOrderHtml(o, {
           siteOrigin,
           stripeSessionId: ctx.stripeSessionId,
           stripePaymentIntentId: ctx.stripePaymentIntentId,
+          restaurantName: restaurantCtx.restaurantName,
+          logoUrl: restaurantCtx.logoUrl,
         }),
       });
       const now = new Date();
@@ -281,12 +284,19 @@ async function sendPaidOrderEmailsMailgun(
         to: latest.customerEmail,
         cc: [cc],
         replyTo: restaurantTo,
-        subject: buildOrderConfirmationSubject(),
+        subject: buildOrderConfirmationSubject(restaurantCtx.restaurantName),
         html: buildOrderConfirmationHtml(latest, {
           siteOrigin,
           stripePaymentIntentId: ctx.stripePaymentIntentId,
+          restaurantName: restaurantCtx.restaurantName,
+          logoUrl: restaurantCtx.logoUrl,
+          pickupPrepareMinutes: restaurantCtx.pickupPrepareMinutes,
         }),
-        text: buildOrderConfirmationText(latest, { stripePaymentIntentId: ctx.stripePaymentIntentId }),
+        text: buildOrderConfirmationText(latest, {
+          stripePaymentIntentId: ctx.stripePaymentIntentId,
+          restaurantName: restaurantCtx.restaurantName,
+          pickupPrepareMinutes: restaurantCtx.pickupPrepareMinutes,
+        }),
       });
       const now = new Date();
       await Order.updateOne(
@@ -322,9 +332,9 @@ async function sendPaidOrderEmailsLegacy(
   order: OrderDoc,
   ctx: { stripeSessionId: string; stripePaymentIntentId?: string }
 ) {
-  const settings = await SiteSetting.findOne().sort({ updatedAt: -1 }).lean<{ email?: string } | null>();
-  const restaurantTo =
-    process.env.RESTAURANT_ORDER_EMAIL?.trim() || settings?.email?.trim();
+  const siteOrigin = assertPublicSiteUrl();
+  const restaurantCtx = await loadRestaurantEmailContext(siteOrigin);
+  const restaurantTo = process.env.RESTAURANT_ORDER_EMAIL?.trim() || restaurantCtx.email || undefined;
   if (!restaurantTo || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(restaurantTo)) {
     throw new Error(
       "Restaurant order email is not configured. Set RESTAURANT_ORDER_EMAIL or SiteSetting.email in the database."
@@ -332,7 +342,7 @@ async function sendPaidOrderEmailsLegacy(
   }
 
   const cc = orderCcEmail();
-  const subjectRestaurant = `[New order] ${order.orderNumber} — $${order.total.toFixed(2)} paid`;
+  const subjectRestaurant = `[New order] ${restaurantCtx.restaurantName} ${order.orderNumber} — $${order.total.toFixed(2)} paid`;
 
   await dispatchLegacyEmail(
     restaurantTo,
@@ -345,7 +355,12 @@ async function sendPaidOrderEmailsLegacy(
   const sendCustomer = process.env.ORDER_SEND_CUSTOMER_CONFIRMATION !== "false";
   if (sendCustomer && order.customerEmail) {
     const subjectCustomer = `Order confirmed — ${order.orderNumber}`;
-    await dispatchLegacyEmail(order.customerEmail, cc, subjectCustomer, buildCustomerConfirmationBody(order, ctx));
+    await dispatchLegacyEmail(
+      order.customerEmail,
+      cc,
+      subjectCustomer,
+      buildCustomerConfirmationBody(order, { ...ctx, restaurantName: restaurantCtx.restaurantName })
+    );
   }
 
   await syncLegacyEmailFlags(order._id.toString(), sendCustomer);

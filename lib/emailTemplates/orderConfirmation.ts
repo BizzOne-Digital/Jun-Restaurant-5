@@ -1,10 +1,26 @@
 import type { OrderDoc } from "@/models/Order";
-import { ESTIMATED_PICKUP_WINDOW, RESTAURANT_ADDRESS_LINES, RESTAURANT_DISPLAY_NAME } from "@/lib/email/constants";
-import { getMerchantOrdersLogoUrl } from "@/lib/email/merchant-orders-logo";
+import {
+  RESTAURANT_ADDRESS_LINES,
+  RESTAURANT_DISPLAY_NAME,
+  formatPickupPrepareWindow,
+} from "@/lib/email/constants";
 
 function money(n: number): string {
   return `$${n.toFixed(2)}`;
 }
+
+export type OrderConfirmationContext = {
+  siteOrigin: string;
+  stripePaymentIntentId?: string;
+  /** Restaurant display name (from SiteSetting); falls back to RESTAURANT_DISPLAY_NAME. */
+  restaurantName?: string;
+  /** Absolute logo URL for the email header. If null/undefined, the header image is hidden. */
+  logoUrl?: string | null;
+  /** Restaurant-controlled estimated pickup prep time, in minutes. */
+  pickupPrepareMinutes?: number;
+  /** Optional override of address lines (defaults to RESTAURANT_ADDRESS_LINES). */
+  addressLines?: readonly string[];
+};
 
 /** Subject: Order confirmation - {restaurantName} */
 export function buildOrderConfirmationSubject(restaurantName: string = RESTAURANT_DISPLAY_NAME): string {
@@ -17,25 +33,25 @@ function customerGreeting(order: OrderDoc): string {
   return `Hi ${escapeHtml(n)},`;
 }
 
-function pickupSectionHtml(): string {
-  const window = ESTIMATED_PICKUP_WINDOW.trim();
-  if (!window) return "";
+function pickupSectionHtml(label: string): string {
+  if (!label) return "";
   return `
                 <tr><td style="font-size:13px;color:#6b7280;">Estimated pickup</td></tr>
-                <tr><td style="font-size:15px;font-weight:600;color:#111827;padding-bottom:12px;">${escapeHtml(window)}</td></tr>`;
+                <tr><td style="font-size:15px;font-weight:600;color:#111827;padding-bottom:12px;">${escapeHtml(label)}</td></tr>`;
 }
 
-function pickupSectionText(): string {
-  const window = ESTIMATED_PICKUP_WINDOW.trim();
-  if (!window) return "";
-  return `Estimated pickup: ${window}\n`;
+function pickupSectionText(label: string): string {
+  if (!label) return "";
+  return `Estimated pickup: ${label}\n`;
 }
 
 export function buildOrderConfirmationText(
   order: OrderDoc,
-  ctx: { stripePaymentIntentId?: string; restaurantName?: string }
+  ctx: Pick<OrderConfirmationContext, "stripePaymentIntentId" | "restaurantName" | "pickupPrepareMinutes" | "addressLines">
 ): string {
   const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const addressLines = ctx.addressLines ?? RESTAURANT_ADDRESS_LINES;
+  const window = formatPickupPrepareWindow(ctx.pickupPrepareMinutes ?? 0);
   const name = order.customerName?.trim();
   const greet = name ? `Hi ${name},` : "Hello,";
   const lines =
@@ -49,7 +65,7 @@ export function buildOrderConfirmationText(
     "",
     `Order number: ${order.orderNumber}`,
     `Order ID: ${order._id}`,
-    pickupSectionText().trimEnd(),
+    pickupSectionText(window).trimEnd(),
     `Order total: ${money(order.total)}`,
     ctx.stripePaymentIntentId ? `Payment reference: ${ctx.stripePaymentIntentId}` : "",
     "",
@@ -59,19 +75,18 @@ export function buildOrderConfirmationText(
     lines,
     "",
     "Pickup location",
-    ...RESTAURANT_ADDRESS_LINES.map((l) => `  ${l}`),
+    ...addressLines.map((l) => `  ${l}`),
     "",
-    "— Merchant Orders (on behalf of the restaurant)",
+    `— ${restaurant}`,
   ]
     .filter(Boolean)
     .join("\n");
 }
 
-export function buildOrderConfirmationHtml(
-  order: OrderDoc,
-  ctx: { siteOrigin: string; stripePaymentIntentId?: string; restaurantName?: string }
-): string {
+export function buildOrderConfirmationHtml(order: OrderDoc, ctx: OrderConfirmationContext): string {
   const restaurant = ctx.restaurantName ?? RESTAURANT_DISPLAY_NAME;
+  const addressLines = ctx.addressLines ?? RESTAURANT_ADDRESS_LINES;
+  const window = formatPickupPrepareWindow(ctx.pickupPrepareMinutes ?? 0);
   const servingLabel = "In-store pickup";
   const rows =
     order.items
@@ -85,7 +100,9 @@ export function buildOrderConfirmationHtml(
       )
       .join("") || "";
 
-  const logo = getMerchantOrdersLogoUrl();
+  const logoBlock = ctx.logoUrl
+    ? `<img src="${escapeHtml(ctx.logoUrl)}" alt="${escapeHtml(restaurant)}" width="180" style="max-width:180px;height:auto;display:inline-block;" />`
+    : `<p style="margin:0;font-size:20px;font-weight:700;color:#111827;letter-spacing:0.02em;">${escapeHtml(restaurant)}</p>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -96,16 +113,15 @@ export function buildOrderConfirmationHtml(
       <td align="center">
         <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="max-width:640px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">
           <tr>
-            <td style="padding:24px 28px 8px;text-align:center;border-bottom:1px solid #e5e7eb;background:#fafafa;">
-              <img src="${escapeHtml(logo)}" alt="Merchant Orders" width="180" style="max-width:180px;height:auto;display:inline-block;" />
+            <td style="padding:24px 28px 16px;text-align:center;border-bottom:1px solid #e5e7eb;background:#fafafa;">
+              ${logoBlock}
             </td>
           </tr>
           <tr>
             <td style="padding:24px 28px 8px;">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#6b7280;">Merchant Orders</p>
               <p style="margin:0 0 8px;font-size:18px;font-weight:700;color:#111827;">${escapeHtml(restaurant)}</p>
               <p style="margin:0;font-size:15px;color:#374151;">${customerGreeting(order)}</p>
-              <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151;">We have <strong>received your order</strong>. Thank you — the restaurant will prepare it for pickup.</p>
+              <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#374151;">We have <strong>received your order</strong>. Thank you — we'll prepare it for pickup.</p>
             </td>
           </tr>
           <tr>
@@ -115,7 +131,7 @@ export function buildOrderConfirmationHtml(
                 <tr><td style="font-size:16px;font-weight:700;color:#111827;padding-bottom:8px;">${escapeHtml(order.orderNumber)}</td></tr>
                 <tr><td style="font-size:13px;color:#6b7280;">Order ID</td></tr>
                 <tr><td style="font-size:13px;font-family:monospace;color:#111827;padding-bottom:12px;word-break:break-all;">${escapeHtml(String(order._id))}</td></tr>
-                ${pickupSectionHtml()}
+                ${pickupSectionHtml(window)}
                 <tr><td style="font-size:13px;color:#6b7280;">Serving mode</td></tr>
                 <tr><td style="font-size:15px;font-weight:600;color:#111827;padding-bottom:12px;">${servingLabel}</td></tr>
                 <tr><td style="font-size:13px;color:#6b7280;">Order total</td></tr>
@@ -152,14 +168,16 @@ export function buildOrderConfirmationHtml(
           <tr>
             <td style="padding:8px 28px 24px;border-top:1px solid #e5e7eb;">
               <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#111827;">Pickup location</p>
-              ${RESTAURANT_ADDRESS_LINES.map(
-                (line) => `<p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">${escapeHtml(line)}</p>`
-              ).join("")}
+              ${addressLines
+                .map(
+                  (line) => `<p style="margin:0;font-size:14px;line-height:1.5;color:#374151;">${escapeHtml(line)}</p>`
+                )
+                .join("")}
             </td>
           </tr>
           <tr>
             <td style="padding:16px 28px 28px;background:#f9fafb;text-align:center;font-size:12px;color:#6b7280;line-height:1.5;">
-              This is an automated message from Merchant Orders on behalf of ${escapeHtml(restaurant)}.<br/>
+              This is an automated message from ${escapeHtml(restaurant)}.<br/>
               Please contact the restaurant with questions about your order.
             </td>
           </tr>

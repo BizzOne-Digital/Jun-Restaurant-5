@@ -13,6 +13,7 @@ const DEFAULTS = {
   socialLinks: { instagram: "", facebook: "", tiktok: "" },
   logo: "/images/logo.png",
   heroImages: [] as string[],
+  pickupPrepareTimeMinutes: 20,
 };
 
 export async function GET() {

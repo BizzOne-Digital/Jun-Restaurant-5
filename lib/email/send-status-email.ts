@@ -9,6 +9,7 @@ import {
   buildOrderStatusUpdateText,
   type StatusNotifyKind,
 } from "@/lib/emailTemplates/orderStatusUpdate";
+import { loadRestaurantEmailContext } from "@/lib/email/restaurant-context";
 
 const CC_DEFAULT = "junkong68@gmail.com";
 
@@ -49,9 +50,14 @@ export async function sendOrderStatusEmailIfNeeded(order: OrderDoc, previousStat
   if (already) return;
 
   const siteOrigin = assertPublicSiteUrl();
-  const subject = buildOrderStatusSubject();
-  const html = buildOrderStatusUpdateHtml(fresh, kind, siteOrigin);
-  const text = buildOrderStatusUpdateText(fresh, kind);
+  const restaurantCtx = await loadRestaurantEmailContext(siteOrigin);
+  const templateCtx = {
+    restaurantName: restaurantCtx.restaurantName,
+    logoUrl: restaurantCtx.logoUrl,
+  };
+  const subject = buildOrderStatusSubject(restaurantCtx.restaurantName);
+  const html = buildOrderStatusUpdateHtml(fresh, kind, templateCtx);
+  const text = buildOrderStatusUpdateText(fresh, kind, templateCtx);
 
   try {
     await sendMailgunEmail({
@@ -60,7 +66,7 @@ export async function sendOrderStatusEmailIfNeeded(order: OrderDoc, previousStat
       subject,
       html,
       text,
-      replyTo: process.env.RESTAURANT_ORDER_EMAIL?.trim() || undefined,
+      replyTo: process.env.RESTAURANT_ORDER_EMAIL?.trim() || restaurantCtx.email || undefined,
     });
   } catch (e) {
     console.error("Status update email failed", e);
