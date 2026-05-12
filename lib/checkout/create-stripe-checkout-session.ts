@@ -37,6 +37,8 @@ export const CheckoutBodySchema = z.object({
   deliveryAddress: AddressSchema.optional().nullable(),
   promoCode: z.string().max(40).optional(),
   notes: z.string().max(1000).optional(),
+  /** Optional gratuity in dollars. Capped at $999 to defeat fat-finger / abuse. */
+  tip: z.coerce.number().min(0).max(999).optional(),
 })
   .superRefine((data, ctx) => {
     if (data.deliveryAddress) {
@@ -94,7 +96,9 @@ export async function createStripeCheckoutSession(
   const deliveryFee = 0;
   const taxable = afterDiscount + deliveryFee;
   const tax = Math.round(taxable * TAX_RATE * 100) / 100;
-  const total = Math.round((taxable + tax) * 100) / 100;
+  /** Tip is voluntary, never taxed, and always added on top. */
+  const tip = Math.max(0, Math.round((data.tip ?? 0) * 100) / 100);
+  const total = Math.round((taxable + tax + tip) * 100) / 100;
 
   await connectDB();
 
@@ -140,6 +144,7 @@ export async function createStripeCheckoutSession(
     tax,
     deliveryFee,
     discount,
+    tip,
     total,
     promoCode,
     paymentStatus: "unpaid",
@@ -165,6 +170,7 @@ export async function createStripeCheckoutSession(
     " · In-store pickup · Tax included";
 
   const totalCents = Math.round(total * 100);
+  const tipCents = Math.round(tip * 100);
   let sumProductCents = 0;
   const productLineItems = validated.lines.map((l) => {
     const unit = Math.round(l.price * 100);
@@ -181,14 +187,32 @@ export async function createStripeCheckoutSession(
     };
   });
 
-  const remainderCents = totalCents - sumProductCents;
+  const tipLineItems =
+    tipCents > 0
+      ? [
+          {
+            quantity: 1,
+            price_data: {
+              currency: "cad",
+              unit_amount: tipCents,
+              product_data: {
+                name: "Tip / gratuity",
+                description: "Voluntary gratuity for the restaurant team",
+              },
+            },
+          },
+        ]
+      : [];
+
+  const remainderCents = totalCents - sumProductCents - tipCents;
 
   const lineItems =
     remainderCents === 0
-      ? productLineItems
+      ? [...productLineItems, ...tipLineItems]
       : remainderCents > 0
         ? [
             ...productLineItems,
+            ...tipLineItems,
             {
               quantity: 1,
               price_data: {

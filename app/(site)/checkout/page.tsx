@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useCartStore } from "@/lib/store/cart-store";
+import { useCartStore, cartSubtotal } from "@/lib/store/cart-store";
 import { AnimatedPage } from "@/components/site/animated-page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,22 @@ import { EmptyState } from "@/components/site/empty-state";
 import Link from "next/link";
 import { toast } from "sonner";
 import { hasMinPhoneDigits, suggestEmailTypo } from "@/lib/email-validation";
+
+type TipMode = "none" | "p15" | "p20" | "p25" | "custom";
+
+const TIP_PERCENTS: Record<Exclude<TipMode, "none" | "custom">, number> = {
+  p15: 0.15,
+  p20: 0.2,
+  p25: 0.25,
+};
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function formatMoney(n: number): string {
+  return `$${n.toFixed(2)}`;
+}
 
 export default function CheckoutPage() {
   const searchParams = useSearchParams();
@@ -23,7 +39,21 @@ export default function CheckoutPage() {
   const [notes, setNotes] = React.useState("");
   const [promo, setPromo] = React.useState("");
   const [loading, setLoading] = React.useState(false);
+  const [tipMode, setTipMode] = React.useState<TipMode>("none");
+  const [customTip, setCustomTip] = React.useState("");
   const emailSuggestion = React.useMemo(() => suggestEmailTypo(email), [email]);
+
+  const subtotal = React.useMemo(() => cartSubtotal(items), [items]);
+
+  const tipAmount = React.useMemo(() => {
+    if (tipMode === "none") return 0;
+    if (tipMode === "custom") {
+      const v = Number(customTip);
+      if (!Number.isFinite(v) || v < 0) return 0;
+      return round2(Math.min(v, 999));
+    }
+    return round2(subtotal * TIP_PERCENTS[tipMode]);
+  }, [tipMode, customTip, subtotal]);
 
   React.useEffect(() => {
     if (status === "authenticated" && session?.user) {
@@ -67,6 +97,7 @@ export default function CheckoutPage() {
           customerPhone: trimmedPhone,
           promoCode: promo || undefined,
           notes,
+          tip: tipAmount > 0 ? tipAmount : undefined,
         }),
       });
       const data = await res.json();
@@ -136,6 +167,66 @@ export default function CheckoutPage() {
               Phone
               <Input className="mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} />
             </label>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-charcoal-900/40 p-4">
+            <p className="text-base font-semibold text-rice-50">Tip</p>
+            <p className="mt-1 text-xs text-rice-400">
+              Percentages are based on your order subtotal (before tax).
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(
+                [
+                  { mode: "none" as const, label: "No tip" },
+                  { mode: "p15" as const, label: `15% (${formatMoney(round2(subtotal * 0.15))})` },
+                  { mode: "p20" as const, label: `20% (${formatMoney(round2(subtotal * 0.2))})` },
+                  { mode: "p25" as const, label: `25% (${formatMoney(round2(subtotal * 0.25))})` },
+                  { mode: "custom" as const, label: "Custom" },
+                ] as const
+              ).map((opt) => {
+                const active = tipMode === opt.mode;
+                return (
+                  <button
+                    key={opt.mode}
+                    type="button"
+                    onClick={() => {
+                      setTipMode(opt.mode);
+                      if (opt.mode !== "custom") setCustomTip("");
+                    }}
+                    className={
+                      "rounded-full px-4 py-2 text-xs font-semibold transition " +
+                      (active
+                        ? "bg-mango-300 text-charcoal-900 shadow-[0_0_0_1px_rgba(255,255,255,0.04)]"
+                        : "border border-white/10 bg-white/[0.04] text-rice-100 hover:bg-white/[0.08]")
+                    }
+                    aria-pressed={active}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+            {tipMode === "custom" ? (
+              <label className="mt-3 block text-xs font-semibold uppercase tracking-wide text-rice-400">
+                Custom tip amount (CAD)
+                <Input
+                  className="mt-1 max-w-[200px]"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={999}
+                  step="0.01"
+                  placeholder="0.00"
+                  value={customTip}
+                  onChange={(e) => setCustomTip(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {tipAmount > 0 ? (
+              <p className="mt-3 text-xs text-rice-400">
+                Tip added: <span className="font-semibold text-mango-300">{formatMoney(tipAmount)}</span>
+              </p>
+            ) : null}
           </div>
 
           <label className="text-xs font-semibold uppercase tracking-wide text-rice-400">

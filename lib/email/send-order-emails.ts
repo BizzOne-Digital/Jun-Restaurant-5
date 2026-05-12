@@ -66,6 +66,7 @@ export function buildRestaurantOrderEmailBody(
     `Discount: $${(order.discount ?? 0).toFixed(2)}`,
     `Delivery fee: $${(order.deliveryFee ?? 0).toFixed(2)}`,
     `Tax: $${(order.tax ?? 0).toFixed(2)}`,
+    (order.tip ?? 0) > 0 ? `Tip: $${(order.tip ?? 0).toFixed(2)}` : "",
     `Total paid: $${order.total.toFixed(2)}`,
     ``,
     `Promo code: ${order.promoCode || "—"}`,

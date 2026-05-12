@@ -27,6 +27,7 @@ type OrderDetail = {
   tax: number;
   deliveryFee: number;
   discount: number;
+  tip: number;
   total: number;
   promoCode?: string;
   paymentStatus: string;
@@ -246,6 +247,12 @@ export default function AdminOrderDetailPage() {
                 <dt>Tax</dt>
                 <dd>{money(order.tax)}</dd>
               </div>
+              {order.tip ? (
+                <div className="flex justify-between text-mango-200">
+                  <dt>Tip</dt>
+                  <dd>{money(order.tip)}</dd>
+                </div>
+              ) : null}
               <div className="flex justify-between border-t border-white/10 pt-2 text-base font-semibold text-rice-50">
                 <dt>Total</dt>
                 <dd>{money(order.total)}</dd>

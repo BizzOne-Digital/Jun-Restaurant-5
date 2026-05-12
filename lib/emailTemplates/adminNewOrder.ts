@@ -88,7 +88,9 @@ export function buildAdminNewOrderHtml(order: OrderDoc, ctx: AdminNewOrderContex
                 </tr>
                 ${rows}
               </table>
-              <p style="margin:12px 0 0;font-size:14px;">Subtotal ${money(order.subtotal)} · Tax ${money(order.tax ?? 0)} · Total <strong>${money(order.total)}</strong></p>
+              <p style="margin:12px 0 0;font-size:14px;">Subtotal ${money(order.subtotal)} · Tax ${money(order.tax ?? 0)}${
+                (order.tip ?? 0) > 0 ? ` · Tip ${money(order.tip ?? 0)}` : ""
+              } · Total <strong>${money(order.total)}</strong></p>
             </td>
           </tr>
           <tr>

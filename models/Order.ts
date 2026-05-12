@@ -55,6 +55,8 @@ const OrderSchema = new Schema(
     tax: { type: Number, default: 0, min: 0 },
     deliveryFee: { type: Number, default: 0, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
+    /** Customer-selected gratuity, in dollars. Always 0 unless picked at checkout. */
+    tip: { type: Number, default: 0, min: 0 },
     total: { type: Number, required: true, min: 0 },
     promoCode: { type: String, default: "" },
     paymentStatus: {

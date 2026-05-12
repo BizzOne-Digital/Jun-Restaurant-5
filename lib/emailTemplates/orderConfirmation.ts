@@ -66,6 +66,7 @@ export function buildOrderConfirmationText(
     `Order number: ${order.orderNumber}`,
     `Order ID: ${order._id}`,
     pickupSectionText(window).trimEnd(),
+    (order.tip ?? 0) > 0 ? `Tip: ${money(order.tip ?? 0)}` : "",
     `Order total: ${money(order.total)}`,
     ctx.stripePaymentIntentId ? `Payment reference: ${ctx.stripePaymentIntentId}` : "",
     "",
@@ -160,6 +161,7 @@ export function buildOrderConfirmationHtml(order: OrderDoc, ctx: OrderConfirmati
                 <tr><td style="padding:6px 0;">Subtotal</td><td align="right" style="padding:6px 0;">${money(order.subtotal)}</td></tr>
                 <tr><td style="padding:6px 0;">Promo / discount</td><td align="right" style="padding:6px 0;">${money(order.discount ?? 0)}</td></tr>
                 <tr><td style="padding:6px 0;">Tax</td><td align="right" style="padding:6px 0;">${money(order.tax ?? 0)}</td></tr>
+                ${(order.tip ?? 0) > 0 ? `<tr><td style="padding:6px 0;">Tip</td><td align="right" style="padding:6px 0;">${money(order.tip ?? 0)}</td></tr>` : ""}
                 <tr><td colspan="2" style="border-top:1px solid #e5e7eb;padding-top:10px;margin-top:8px;"></td></tr>
                 <tr><td style="padding:8px 0 0;font-size:16px;font-weight:700;color:#111827;">Total</td><td align="right" style="padding:8px 0 0;font-size:16px;font-weight:700;color:#111827;">${money(order.total)}</td></tr>
               </table>
