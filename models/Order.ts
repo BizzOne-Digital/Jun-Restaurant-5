@@ -85,6 +85,9 @@ const OrderSchema = new Schema(
     merchantNotificationEmailSent: { type: Boolean, default: false },
     merchantNotificationEmailSentAt: { type: Date, default: null },
     notes: { type: String, default: "" },
+    /** Central Order App sync tracking */
+    orderAppSynced: { type: Boolean, default: false },
+    orderAppSyncedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -7,6 +7,7 @@ import { assertStripeWebhookSecretOptional, StripeSetupError } from "@/lib/strip
 import { Order } from "@/models/Order";
 import { Promotion } from "@/models/Promotion";
 import { StripeWebhookEvent } from "@/models/StripeWebhookEvent";
+import { sendPaidOrderToOrderApp } from "@/lib/order-app-sync";
 import type Stripe from "stripe";
 
 export const runtime = "nodejs";
@@ -135,6 +136,25 @@ export async function POST(req: Request) {
           } catch (mailErr) {
             console.error("Order paid but email failed", mailErr);
           }
+        }
+
+        // ── Central Order App sync (non-blocking, must not affect payment/email flow) ──
+        const syncDoc = await Order.findById(orderId);
+        if (syncDoc && !syncDoc.orderAppSynced) {
+          sendPaidOrderToOrderApp(syncDoc, {
+            stripePaymentIntentId: piId,
+            stripeCheckoutSessionId: expanded.id,
+            paidAt: new Date(),
+          })
+            .then(() =>
+              Order.updateOne(
+                { _id: orderId },
+                { $set: { orderAppSynced: true, orderAppSyncedAt: new Date() } }
+              )
+            )
+            .catch((syncErr: Error) =>
+              console.error(`Order App sync failed for order ${syncDoc.orderNumber}: ${syncErr.message}`)
+            );
         }
       }
 

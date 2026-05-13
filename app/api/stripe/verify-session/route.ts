@@ -6,6 +6,7 @@ import { StripeSetupError } from "@/lib/stripe-env";
 import { Order } from "@/models/Order";
 import { Promotion } from "@/models/Promotion";
 import { sendPaidOrderEmails } from "@/lib/email/send-order-emails";
+import { sendPaidOrderToOrderApp } from "@/lib/order-app-sync";
 
 export const runtime = "nodejs";
 
@@ -108,6 +109,25 @@ export async function POST(req: NextRequest) {
       } catch (mailErr) {
         console.error("sendPaidOrderEmails failed after payment", mailErr);
       }
+    }
+
+    // ── Central Order App sync (non-blocking, must not affect payment/email/success flow) ──
+    const syncDoc = await Order.findById(orderId);
+    if (syncDoc && !syncDoc.orderAppSynced) {
+      sendPaidOrderToOrderApp(syncDoc, {
+        stripePaymentIntentId: paymentIntentId || null,
+        stripeCheckoutSessionId: session.id,
+        paidAt: new Date(),
+      })
+        .then(() =>
+          Order.updateOne(
+            { _id: orderId },
+            { $set: { orderAppSynced: true, orderAppSyncedAt: new Date() } }
+          )
+        )
+        .catch((syncErr: Error) =>
+          console.error(`Order App sync failed for order ${syncDoc.orderNumber}: ${syncErr.message}`)
+        );
     }
 
     return NextResponse.json({
