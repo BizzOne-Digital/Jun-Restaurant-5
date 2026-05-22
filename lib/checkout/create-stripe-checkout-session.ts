@@ -13,6 +13,7 @@ import { Types } from "mongoose";
 import { assertPublicSiteUrl, publicSiteUrlWithPath } from "@/lib/site-url";
 import { hasMinPhoneDigits } from "@/lib/email-validation";
 import {
+  SPLIT_PAYMENT_ENABLED,
   ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID,
   PAYMENT_MODE,
   calculatePlatformFee,
@@ -117,9 +118,6 @@ export async function createStripeCheckoutSession(
   }
 
   const restaurantName = settings?.restaurantName?.trim() || "Restaurant";
-
-  // Stripe Connect destination charge — hardcoded server-side, never from DB or admin UI.
-  const connectedAccountId = ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID;
 
   const orderItems = validated.lines.map((l) => ({
     menuItemId:
@@ -247,7 +245,7 @@ export async function createStripeCheckoutSession(
 
   const metadata = {
     orderId: order._id.toString(),
-    restaurantId: "ono-poke-bar",
+    restaurantId: "ono-poke-bar-georgetown",
     restaurantName,
     customerName: data.customerName,
     customerEmail,
@@ -255,26 +253,26 @@ export async function createStripeCheckoutSession(
     orderType,
     servingMode: "in_store_pickup",
     paymentMode: PAYMENT_MODE,
-    connectedAccountId,
+    connectedAccountId: SPLIT_PAYMENT_ENABLED ? ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID : "",
   } satisfies Record<string, string>;
 
-  const platformFeeAmount = calculatePlatformFee(totalCents);
-
   /**
-   * Destination charge: platform creates the charge, application_fee_amount (12%) stays on
-   * the platform account, and the remainder (88%) is immediately transferred to the
-   * connected restaurant account via transfer_data.destination.
-   * Commission rate and account ID are hardcoded in lib/payment-config.ts — not editable
-   * from the admin portal.
+   * For this location (Georgetown), split payment is disabled.
+   * Direct Stripe payment — no application_fee_amount, no transfer_data.
+   * For the original Western Battery location, split payment applies (12% platform fee).
    */
-  const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = {
-    application_fee_amount: platformFeeAmount,
-    transfer_data: { destination: connectedAccountId },
-    metadata: {
-      ...metadata,
-      connectedAccountId,
-    },
-  };
+  const paymentIntentData: Stripe.Checkout.SessionCreateParams.PaymentIntentData = SPLIT_PAYMENT_ENABLED
+    ? {
+        application_fee_amount: calculatePlatformFee(totalCents),
+        transfer_data: { destination: ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID },
+        metadata: {
+          ...metadata,
+          connectedAccountId: ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID,
+        },
+      }
+    : {
+        metadata,
+      };
 
   const sessionStripe = await stripe.checkout.sessions.create({
     mode: "payment",

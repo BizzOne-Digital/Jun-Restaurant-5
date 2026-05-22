@@ -109,21 +109,20 @@ export default function HomePage() {
         <div className="glass-panel grid gap-6 rounded-[1.5rem] p-5 sm:p-6 md:grid-cols-2 md:gap-8 md:rounded-[2rem] md:p-10">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.3em] text-coral-300">Visit</p>
-            <h3 className="mt-2 font-display text-2xl text-rice-50 sm:text-3xl">Find us in Liberty Village</h3>
+            <h3 className="mt-2 font-display text-2xl text-rice-50 sm:text-3xl">Find us in Georgetown</h3>
             <p className="mt-4 text-rice-200">
-              100 Western Battery Rd #2
+              369 Mountainview Rd S #5
               <br />
-              Toronto, ON M6K 3S2
+              Georgetown, ON L7G 5X3
             </p>
-            <p className="mt-3 text-sm text-rice-400">Drop real hours + parking notes in admin settings.</p>
           </div>
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-ocean-900/40">
             <iframe
-              title="ONO Poké Bar map"
+              title="ONO Poké Bar Georgetown map"
               className="h-56 w-full sm:h-64 md:h-full"
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
-              src="https://www.google.com/maps?q=100+Western+Battery+Rd+%232+Toronto+ON+M6K+3S2&output=embed"
+              src="https://www.google.com/maps?q=369+Mountainview+Rd+S+%235+Georgetown+ON+L7G+5X3&output=embed"
             />
           </div>
         </div>

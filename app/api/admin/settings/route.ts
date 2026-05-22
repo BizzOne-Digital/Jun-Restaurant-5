@@ -45,7 +45,7 @@ export async function PATCH(req: Request) {
   if (!doc) {
     doc = await SiteSetting.create({
       restaurantName: "ONO Poké Bar",
-      address: "100 Western Battery Rd #2, Toronto, ON M6K 3S2",
+      address: "369 Mountainview Rd S #5, Georgetown, ON L7G 5X3",
       phone: "",
       email: "",
       openingHours: "",

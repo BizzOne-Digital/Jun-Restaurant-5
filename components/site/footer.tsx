@@ -12,20 +12,19 @@ export function Footer() {
             </div>
             <div>
               <p className="font-display text-lg font-semibold">ONO Poké Bar</p>
-              <p className="text-xs text-rice-300">Island energy, Toronto soul.</p>
+              <p className="text-xs text-rice-300">Island energy, Georgetown soul.</p>
             </div>
           </div>
           <p className="text-sm text-rice-300">
-            Premium poké bowls near Liberty Village. Swap placeholder hero/menu photography with your professional shoot
-            before launch.
+            Premium poké bowls in Georgetown, ON.
           </p>
         </div>
         <div>
           <p className="mb-3 text-sm font-semibold text-rice-100">Visit</p>
           <p className="text-sm text-rice-300">
-            100 Western Battery Rd #2
+            369 Mountainview Rd S #5
             <br />
-            Toronto, ON M6K 3S2
+            Georgetown, ON L7G 5X3
           </p>
           <p className="mt-3 text-sm text-rice-400">Hours: Mon–Sun · 11am–9pm (placeholder)</p>
         </div>
@@ -35,10 +34,6 @@ export function Footer() {
             <Link className="hover:text-rice-50" href="/menu">
               Order online
             </Link>
-            <a className="hover:text-rice-50" href="mailto:hello@onopokebar.com">
-              hello@onopokebar.com
-            </a>
-            <p className="text-rice-500">Social links: add real URLs in admin settings.</p>
           </div>
         </div>
       </div>

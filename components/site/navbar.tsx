@@ -34,7 +34,7 @@ export function Navbar() {
             </div>
             <div className="min-w-0 leading-tight">
               <p className="truncate font-display text-sm font-semibold tracking-tight text-rice-50 sm:text-lg">ONO Poké Bar</p>
-              <p className="truncate text-[10px] uppercase tracking-[0.15em] text-mango-300/90 sm:text-[11px] sm:tracking-[0.2em]">Toronto</p>
+              <p className="truncate text-[10px] uppercase tracking-[0.15em] text-mango-300/90 sm:text-[11px] sm:tracking-[0.2em]">Georgetown</p>
             </div>
           </Link>
 
