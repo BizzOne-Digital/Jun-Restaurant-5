@@ -31,7 +31,7 @@ export function Hero() {
             transition={{ delay: 0.05 }}
             className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-mango-200 md:px-4 md:text-xs md:tracking-[0.25em]"
           >
-            Liberty Village · Fresh daily
+            Georgetown · Fresh daily
           </motion.p>
           <motion.h1
             initial={{ opacity: 0, y: 18 }}
@@ -49,7 +49,7 @@ export function Hero() {
             transition={{ delay: 0.2 }}
             className="text-center text-base text-rice-200/90 md:text-left md:text-xl"
           >
-            Premium poké bowls crafted fresh in downtown Toronto — vibrant ingredients, chef-level balance, and a dining
+            Premium poké bowls crafted fresh in Georgetown — vibrant ingredients, chef-level balance, and a dining
             experience that feels as good as it tastes.
           </motion.p>
 
