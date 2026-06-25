@@ -265,12 +265,14 @@ export async function createStripeCheckoutSession(
     ? {
         application_fee_amount: calculatePlatformFee(totalCents),
         transfer_data: { destination: ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID },
+        statement_descriptor_suffix: "Georgetown",
         metadata: {
           ...metadata,
           connectedAccountId: ONO_POKE_STRIPE_CONNECTED_ACCOUNT_ID,
         },
       }
     : {
+        statement_descriptor_suffix: "Georgetown",
         metadata,
       };
 
